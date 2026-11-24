@@ -1,0 +1,1563 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Diesel Utilization System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky control bar with tabs over a fuel-depot console; tank gauge leads the dashboard. */
+:root{
+  --bg:#eef2f1; --surface:#ffffff; --surface-2:#f5f8f7; --line:#d3dcda; --fg:#14221f; --muted:#5a6b67;
+  --ink:#0f3b36; --ink-fg:#e8f2ef; --accent:#d98e04; --accent-soft:#fbeccd; --accent-fg:#5a3a00;
+  --ok:#1f7a4d; --ok-soft:#dcf1e5; --warn:#b06d00; --warn-soft:#fdf0d6; --bad:#b3261e; --bad-soft:#fbe1df;
+  --fuel:#d98e04; --fuel-2:#f3b63c; --grid:#e3e9e7; --logo-plate:transparent;
+  --av1:#b3412e; --av2:#0f7a74; --av3:#7a4bb0; --av4:#9a5a1c; --av5:#2f6db3; --av6:#5d7a1f;
+  --f-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c1513; --surface:#13201d; --surface-2:#182a26; --line:#26403a; --fg:#e3ece9; --muted:#93a8a3;
+  --ink:#0a2a26; --ink-fg:#d9ebe6; --accent:#f0a823; --accent-soft:#3a2a0b; --accent-fg:#ffd98a;
+  --ok:#4cc38a; --ok-soft:#123326; --warn:#f0b54a; --warn-soft:#382a0f; --bad:#f07a72; --bad-soft:#3d1714;
+  --fuel:#e9a226; --fuel-2:#c27f0b; --grid:#1f3330; --logo-plate:#f7f4f1; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c1513; --surface:#13201d; --surface-2:#182a26; --line:#26403a; --fg:#e3ece9; --muted:#93a8a3;
+  --ink:#0a2a26; --ink-fg:#d9ebe6; --accent:#f0a823; --accent-soft:#3a2a0b; --accent-fg:#ffd98a;
+  --ok:#4cc38a; --ok-soft:#123326; --warn:#f0b54a; --warn-soft:#382a0f; --bad:#f07a72; --bad-soft:#3d1714;
+  --fuel:#e9a226; --fuel-2:#c27f0b; --grid:#1f3330; --logo-plate:#f7f4f1; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--ink)}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+aside.side{position:sticky;top:env(safe-area-inset-top,0px);height:calc(100vh - env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:20px;background:var(--ink);color:var(--ink-fg);padding:18px 12px 16px max(12px,env(safe-area-inset-left,0px));overflow-y:auto}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;padding:0 6px}
+.brand .mark{width:32px;height:32px;border-radius:7px;background:var(--accent);display:grid;place-items:center;flex:none}
+.brand h1{margin:0;font-family:var(--f-display);font-weight:700;font-size:21px;letter-spacing:.02em;text-transform:uppercase;line-height:1}
+.brand small{display:block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;opacity:.7;font-family:var(--f-body);margin-top:3px}
+nav.tabs{display:flex;flex-direction:column;gap:2px}
+nav.tabs .grp{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;padding:10px 10px 4px}
+nav.tabs a{display:flex;align-items:center;gap:10px;color:var(--ink-fg);text-decoration:none;padding:9px 10px;border-radius:7px;font-weight:500;white-space:nowrap;opacity:.82}
+nav.tabs a svg{flex:none;opacity:.9}
+nav.tabs a:hover{opacity:1;background:rgba(255,255,255,.08)}
+nav.tabs a[aria-current="page"]{opacity:1;background:var(--accent);color:#1d1300}
+nav.tabs a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.side-foot{margin-top:auto;padding:12px;border-radius:8px;background:rgba(255,255,255,.06)}
+.side-foot .lbl{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.6}
+.side-foot .v{font-family:var(--f-display);font-weight:700;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}
+.side-foot .v small{font-size:14px;opacity:.7;font-weight:500}
+.side-foot .meter{height:6px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;margin-top:8px}
+.side-foot .meter i{display:block;height:100%;background:var(--accent);width:0}
+.wrap{max-width:1160px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{padding-block:24px 48px}
+main.wrap{padding-left:28px;padding-right:max(28px,env(safe-area-inset-right,0px));margin:0;width:100%}
+main .m-plant.fld{display:none}
+.topline{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.topline .m-plant{margin:0;flex:1 1 180px;max-width:280px}
+.clock{margin-left:auto;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;justify-content:flex-end;text-align:right}
+.clock .cd{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.clock .ct{font-family:var(--f-display);font-weight:700;font-size:26px;line-height:1;font-variant-numeric:tabular-nums;color:var(--fg)}
+.clock .cz{font-size:11px;color:var(--muted);font-family:var(--f-mono)}
+#kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:1100px){#kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:1000px){
+  .app{grid-template-columns:200px minmax(0,1fr)}
+  main.wrap{padding-left:20px;padding-right:max(16px,env(safe-area-inset-right,0px))}
+}
+@media (max-width:640px){
+  .app{grid-template-columns:60px minmax(0,1fr)}
+  aside.side{padding:14px 8px 14px max(8px,env(safe-area-inset-left,0px));gap:14px;align-items:center}
+  .brand{padding:0}.brand>div:last-child{display:none}
+  nav.tabs{align-items:center}
+  nav.tabs a{padding:10px;justify-content:center}
+  nav.tabs a .t,nav.tabs .grp,aside.side .side-foot,aside.side .plant-pick{display:none}
+  main.wrap{padding-left:14px;padding-right:max(14px,env(safe-area-inset-right,0px))}
+  main .m-plant.fld{display:flex}
+  .clock{margin-left:0;justify-content:flex-start;text-align:left}
+  .m-plant select{max-width:100%}
+}
+}
+.notice{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-radius:8px;margin-bottom:16px;background:var(--accent-soft);color:var(--accent-fg);font-size:13px}
+h2.sec{font-family:var(--f-display);font-weight:600;font-size:26px;letter-spacing:.01em;margin:0 0 4px;text-wrap:balance}
+p.lead{margin:0 0 18px;color:var(--muted);max-width:68ch}
+h3{font-family:var(--f-display);font-weight:600;font-size:18px;letter-spacing:.03em;text-transform:uppercase;margin:0 0 12px;color:var(--fg)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.grid{display:grid;gap:16px}
+.g-dash{grid-template-columns:minmax(0,340px) minmax(0,1fr)}
+.g-form{grid-template-columns:minmax(0,360px) minmax(0,1fr);align-items:start}
+@media (max-width:860px){.g-dash,.g-form{grid-template-columns:minmax(0,1fr)}}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.kpi{background:var(--surface);padding:14px 16px}
+.kpi .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.kpi .val{font-family:var(--f-display);font-weight:600;font-size:30px;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi .val small{font-size:15px;color:var(--muted);font-weight:500;margin-left:3px}
+.kpi .sub{font-size:12px;color:var(--muted)}
+/* gauge */
+.gauges{display:grid;gap:18px}
+.gauge{display:flex;gap:18px;align-items:stretch}
+.gauge h4{margin:0 0 2px;font-family:var(--f-display);font-weight:600;font-size:17px;letter-spacing:.03em;text-transform:uppercase}
+.plant-pick{padding:0 6px}
+.plant-pick label{display:block;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.6;margin-bottom:4px}
+.plant-pick select{background:rgba(255,255,255,.08);color:var(--ink-fg);border-color:rgba(255,255,255,.18)}
+.plant-pick select option{color:#14221f;background:#fff}
+.side-foot{display:grid;gap:12px}
+.chip{display:inline-block;font-family:var(--f-mono);font-size:11px;font-weight:500;padding:1px 6px;border-radius:4px;background:var(--surface-2);border:1px solid var(--line)}
+.tank{position:relative;width:84px;flex:none;height:170px;border:2px solid var(--fg);border-radius:14px 14px 10px 10px;overflow:hidden;background:var(--surface-2)}
+.tank .fill{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,var(--fuel-2),var(--fuel));transition:height .6s ease}
+.tank .reorder{position:absolute;left:0;right:0;border-top:2px dashed var(--bad)}
+.tank .ticks{position:absolute;inset:0;background:repeating-linear-gradient(180deg,transparent 0 21px,color-mix(in srgb,var(--fg) 25%,transparent) 21px 22px);pointer-events:none}
+.gauge-info{display:flex;flex-direction:column;gap:6px;min-width:0}
+.gauge-info .big{font-family:var(--f-display);font-weight:700;font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
+.gauge-info .big small{font-size:18px;color:var(--muted);font-weight:500}
+.meta{font-size:12px;color:var(--muted)}
+.meta b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.na{background:var(--surface-2);color:var(--muted)}
+/* forms */
+form .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fld{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;min-width:0}
+.fld label{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+.fld .hint{font-size:11.5px;color:var(--muted)}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;min-width:0}
+input[type=number]{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:8px 14px;font-weight:600}
+button.primary{background:var(--accent);border-color:var(--accent);color:#1d1300}
+button.primary:hover{filter:brightness(1.05)}
+button.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:4px 8px;font-weight:500}
+button.ghost:hover{color:var(--fg);background:var(--surface-2)}
+button.danger{color:var(--bad)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.msg{font-size:13px;min-height:1.2em}
+.msg.err{color:var(--bad)} .msg.ok{color:var(--ok)} .msg.warn{color:var(--warn)}
+/* issuance form */
+.entry-head{display:flex;align-items:center;gap:10px;margin:0 0 12px}
+.entry-head h3{margin:0}
+.entry-head::after{content:"";flex:1;border-top:1px solid var(--line)}
+.fgrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px 12px}
+.fgrid.c5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.fgrid .fld{margin-bottom:8px}
+.span2{grid-column:span 2}.span4{grid-column:span 4}
+.req{color:var(--bad)}
+input.auto,output.auto{background:var(--surface-2);color:var(--muted);border:1px dashed var(--line);border-radius:6px;padding:8px 10px;font-family:var(--f-mono);min-height:38px;display:block}
+output.auto.has{color:var(--fg);border-style:solid;font-weight:600}
+input.me{background:var(--accent-soft);color:var(--accent-fg);font-weight:600;border-color:transparent}
+.meter-sec{border-top:1px dashed var(--line);margin-top:6px;padding-top:12px}
+.meter-sec .sub-h{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0 0 10px}
+.meter-sec .sub-h small{text-transform:none;letter-spacing:0;font-weight:400}
+.mgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) 1px repeat(3,minmax(0,1fr));gap:4px 12px;align-items:end}
+.mgrid .sep{align-self:stretch;background:var(--line);margin-block:6px 14px}
+.mtr{display:flex;gap:6px;min-width:0}
+.flagbox{display:inline-flex;align-items:center;gap:3px;padding:0 7px;border-radius:6px;border:1px solid var(--warn);background:var(--warn-soft);color:var(--warn);cursor:pointer;flex:none;font-size:12px}
+.flagbox input{width:auto;margin:0}
+.flagbox:has(input:checked){background:var(--warn);color:var(--surface)}
+.fld label.km{color:var(--fg)} .fld label.hr{color:var(--ok)}
+.preview{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:13px;min-height:24px}
+.form-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:10px}
+@media (max-width:1100px){.fgrid,.fgrid.c5{grid-template-columns:repeat(3,minmax(0,1fr))}.span4{grid-column:span 3}.mgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.mgrid .sep{display:none}}
+@media (max-width:560px){.fgrid,.fgrid.c5,.mgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.span4,.span2{grid-column:1/-1}}
+tr.grp-h td{background:var(--surface-2);font-weight:600;font-family:var(--f-display);font-size:15px;letter-spacing:.02em;border-bottom:1px solid var(--line)}
+tr.grp-t td{font-weight:600;border-bottom:2px solid var(--line);background:color-mix(in srgb,var(--accent-soft) 45%,transparent)}
+#lg-kpis{grid-template-columns:repeat(8,minmax(0,1fr));margin-bottom:16px}
+#lg-kpis .val{font-size:22px}
+@media (max-width:1200px){#lg-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:640px){#lg-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.toolbar.wrapf .fld{max-width:none}
+textarea{font-family:var(--f-mono);font-size:13px;resize:vertical}
+.dpcard h4{margin:0 0 8px;font-family:var(--f-display);font-weight:600;font-size:18px;letter-spacing:.03em;text-transform:uppercase}
+.dpcard .nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0}
+.dpcard .nums div{min-width:0}
+.dpcard .nums .l{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.dpcard .nums .v{font-family:var(--f-display);font-weight:600;font-size:22px;font-variant-numeric:tabular-nums}
+.decide{display:flex;flex-direction:column;gap:6px;min-width:230px}
+.decide input{padding:5px 8px}
+.decide .actions{gap:6px}
+/* logo */
+.lc-logo{display:block;width:min(100%,240px);height:auto;background:var(--logo-plate);border-radius:12px;padding:6px 10px}
+.side-logo{background:#fff;border-radius:10px;padding:8px 12px;margin:0 2px}
+.side-logo img{display:block;width:100%;max-width:160px;height:auto;margin:0 auto}
+@media (max-width:640px){.side-logo{display:none}}
+/* sign-in */
+.login{position:fixed;inset:0;z-index:60;overflow:auto;display:flex;justify-content:center;align-items:flex-start;
+  padding:max(28px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 28px max(16px,env(safe-area-inset-left,0px));
+  background:radial-gradient(900px 520px at 15% -10%,rgba(240,168,35,.22),transparent 60%),linear-gradient(160deg,#0a2a26 0%,#0f3b36 55%,#091b18 100%)}
+.login-card{width:min(100%,580px);margin-block:auto;background:var(--surface);color:var(--fg);border-radius:18px;padding:32px 28px 26px;box-shadow:0 30px 80px rgba(0,0,0,.4)}
+.lc-brand{display:flex;flex-direction:column;align-items:center;gap:10px}
+.lc-brand .mark{width:54px;height:54px;border-radius:12px;background:var(--accent);display:grid;place-items:center}
+.lc-brand .wm{font-family:var(--f-display);font-weight:700;font-size:40px;line-height:1;letter-spacing:.08em;color:var(--fg)}
+.login-card h2{margin:12px 0 2px;text-align:center;font-family:var(--f-display);font-weight:700;font-size:26px;letter-spacing:.08em;text-transform:uppercase}
+.lc-sub{margin:0 0 22px;text-align:center;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+.login-card .fld label{font-size:13px;color:var(--fg)}
+.login-card input{padding:11px 12px;font-size:15px}
+.pw{position:relative}.pw input{padding-right:44px}
+.eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--muted);padding:6px 8px}
+button.wide{width:100%;padding:12px;font-size:16px;margin-top:4px}
+.lc-help{text-align:center;font-size:12.5px;color:var(--muted);margin:10px 0 0}
+.lc-div{display:flex;align-items:center;gap:12px;margin:22px 0 14px;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.lc-div::before,.lc-div::after{content:"";flex:1;border-top:1px solid var(--line)}
+.qgrp h5{margin:12px 0 8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:10px}
+.qcard{display:flex;align-items:center;gap:12px;text-align:left;padding:10px 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);font-weight:400;min-width:0}
+.qcard:hover{border-color:var(--accent)}
+.qcard.sel{outline:2px solid var(--accent);outline-offset:0}
+.qcard b{display:block;font-size:14px;color:var(--fg)}
+.qcard small{display:block;font-size:12px;color:var(--muted);line-height:1.3}
+.qcard div{min-width:0}
+.av{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;flex:none;letter-spacing:.02em}
+.who{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;background:rgba(255,255,255,.06);margin:0 2px}
+.who .av{width:34px;height:34px;font-size:12px}
+.who-t{min-width:0;flex:1}
+.who-t b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who-t small{display:block;font-size:11px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.whobtn{color:var(--ink-fg);padding:6px;border:0;background:transparent;opacity:.8}
+.whobtn:hover{opacity:1;background:rgba(255,255,255,.08)}
+.role-note{margin:0 0 12px}
+@media (max-width:640px){.who{flex-direction:column;padding:6px 0;background:transparent;margin-top:auto}.who-t{display:none}.login-card{padding:24px 18px}.lc-brand .wm{font-size:34px}}
+/* phone: menu button + slide-out sidebar */
+.mbar,.scrim{display:none}
+@media (max-width:640px){
+  .app{grid-template-columns:minmax(0,1fr);align-content:start}
+  .mbar{display:flex;align-items:center;gap:10px;position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--ink);color:var(--ink-fg);padding:8px max(14px,env(safe-area-inset-right,0px)) 8px max(10px,env(safe-area-inset-left,0px))}
+  .mbar button{background:transparent;border:0;color:var(--ink-fg);padding:8px;display:grid;place-items:center;border-radius:8px}
+  .mbar button:hover{background:rgba(255,255,255,.08)}
+  .mbar img{height:30px;width:auto;background:#fff;border-radius:6px;padding:3px 7px}
+  .mbar b{font-family:var(--f-display);font-weight:700;font-size:18px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  aside.side{position:fixed;top:0;bottom:0;left:0;z-index:40;width:min(84vw,300px);height:100%;transform:translateX(-105%);visibility:hidden;transition:transform .22s ease,visibility .22s;
+    padding:calc(14px + env(safe-area-inset-top,0px)) 12px calc(14px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));gap:16px;align-items:stretch;box-shadow:0 0 40px rgba(0,0,0,.35);overflow-y:auto}
+  body.nav-open aside.side{transform:none;visibility:visible}
+  body.nav-open .scrim{display:block;position:fixed;inset:0;z-index:35;background:rgba(0,0,0,.45)}
+  .side-logo{display:block}
+  .brand{padding:0 6px}.brand>div:last-child{display:block}
+  nav.tabs{align-items:stretch}
+  nav.tabs a{padding:10px;justify-content:flex-start}
+  nav.tabs a .t{display:inline}
+  nav.tabs .grp{display:block}
+  aside.side .side-foot{display:grid}
+  aside.side .plant-pick{display:block}
+  .plant-pick label{display:block}
+  .who{flex-direction:row;padding:8px;background:rgba(255,255,255,.06);margin-top:auto}
+  .who-t{display:block}
+}
+@media (prefers-reduced-motion:reduce){aside.side{transition:none}}
+/* tables */
+.tbl-wrap{overflow-x:auto;margin-inline:-16px;padding-inline:16px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--grid);vertical-align:middle}
+td.n,th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td.code{font-family:var(--f-mono);font-weight:500;white-space:nowrap}
+tr:hover td{background:var(--surface-2)}
+tfoot td{font-weight:600;border-top:1px solid var(--line);border-bottom:0}
+.empty{padding:28px 12px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--fg);font-size:15px;margin-bottom:4px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:12px}
+.toolbar .fld{margin:0;min-width:140px;flex:1 1 140px;max-width:220px}
+.toolbar .spacer{flex:1 1 0}
+.chart svg{display:block;width:100%;height:auto}
+.chart text{fill:var(--muted);font-family:var(--f-mono);font-size:10px}
+.chart .bar{fill:var(--fuel)}
+.chart .gl{stroke:var(--grid)}
+.alerts{display:flex;flex-direction:column;gap:8px}
+.alert{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;background:var(--surface-2);font-size:13px}
+.confirm{display:inline-flex;gap:6px;align-items:center;font-size:12px}
+.muted{color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (max-width:520px){form .row{grid-template-columns:1fr}.gauge-info .big{font-size:36px}.tank{width:76px;height:190px}}
+@media (prefers-reduced-motion:reduce){.tank .fill{transition:none}}
+</style>
+<style>/* base reset */:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+<script type="module" src="js/backend.js"></script>
+</head>
+<body>
+
+<div class="login" id="login" role="dialog" aria-modal="true" aria-labelledby="lc-title">
+  <div class="login-card">
+    <div class="lc-brand"><img class="lc-logo" src="img/bigben-logo.png" alt="Big Ben" width="220" height="81"></div>
+    <h2 id="lc-title">Diesel Utilization</h2>
+    <p class="lc-sub">Inventory management system</p>
+    <form id="f-login" autocomplete="off" novalidate>
+      <div class="fld"><label for="li-user">Username</label><input id="li-user" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="e.g. aroxas"></div>
+      <div class="fld"><label for="li-pw" id="li-pw-lbl">Password</label><div class="pw"><input id="li-pw" type="password" autocomplete="current-password"><button type="button" class="eye" id="li-eye" aria-label="Show password"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+      <div id="li-new" hidden>
+        <p class="notice" style="margin:0 0 10px" id="li-new-note"></p>
+        <div class="fld"><label for="li-pwn">New password</label><input id="li-pwn" type="password" autocomplete="new-password"></div>
+        <div class="fld"><label for="li-pw2">Confirm new password</label><input id="li-pw2" type="password" autocomplete="new-password"></div>
+      </div>
+      <button class="primary wide" type="submit" id="li-btn">Sign in</button>
+      <p class="msg" id="li-msg" role="status" style="text-align:center;margin:8px 0 0"></p>
+      <div class="actions" style="justify-content:center"><button type="button" class="ghost" id="li-cancel" hidden>Cancel</button><button type="button" class="ghost" id="li-out" hidden>Sign out</button></div>
+      <p class="lc-help">Forgot your password? Ask the Inventory Management Head to reset it.</p>
+    </form>
+    <div class="lc-div" id="li-div">Quick select account</div>
+    <div id="li-quick"><p class="meta" style="text-align:center">Loading…</p></div>
+  </div>
+</div>
+<div class="app" id="app" inert>
+<aside class="side" id="sidenav">
+    <div class="side-logo"><img src="img/bigben-logo.png" alt="Big Ben" width="220" height="81"></div>
+    <div class="brand">
+      <div class="mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1d1300" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16"/><path d="M3 21h13"/><path d="M15 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3"/><path d="M7 8h5"/></svg>
+      </div>
+      <div><h1>Diesel Utilization</h1><small>Fuel inventory &amp; consumption</small></div>
+    </div>
+    <div class="plant-pick"><label for="plant-sel">Plant</label><select id="plant-sel"><option value="">All plants</option><option value="RMC">Batching Plant (RMC)</option><option value="RMP">Raw Materials Plant (RMP)</option></select></div>
+    <nav class="tabs" aria-label="Sections">
+      <a href="#dashboard" data-tab="dashboard" title="Dashboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span class="t">Dashboard</span></a>
+      <span class="grp">Transactions</span>
+      <a href="#issue" data-tab="issue" title="Issue Fuel"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg><span class="t">Issue Fuel</span></a>
+      <a href="#receive" data-tab="receive" title="Receive Delivery"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 6h13v10H1z"/><path d="M14 9h4l4 4v3h-8"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="17.5" cy="18.5" r="2"/></svg><span class="t">Receive Delivery</span></a>
+      <a href="#stock" data-tab="stock" title="Stock Inventory"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2h4v20h-4z"/><path d="M14 6h3M14 10h2M14 14h3M14 18h2"/></svg><span class="t">Stock Inventory</span></a>
+      <a href="#adjust" data-tab="adjust" title="Stock Adjustment"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg><span class="t">Stock Adjustment</span><span class="chip" id="adj-badge" hidden style="margin-left:auto;background:var(--accent);color:#1d1300;border:0"></span></a>
+      <span class="grp">Records</span>
+      <a href="#units" data-tab="units" title="Units &amp; Setup"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h18M3 12h18M3 17h18"/></svg><span class="t">Units &amp; Setup</span></a>
+      <a href="#log" data-tab="log" title="Consumption Log"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg><span class="t">Consumption Log</span></a>
+      <a href="#accounts" data-tab="accounts" title="User Accounts" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="t">User Accounts</span></a>
+      <a href="#reports" data-tab="reports" title="Utilization Report"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="t">Utilization Report</span></a>
+    </nav>
+    <div class="side-foot" id="side-tanks" aria-live="polite"></div>
+    <div class="who" id="who" hidden><span class="av" id="who-av"></span><div class="who-t"><b id="who-name"></b><small id="who-role"></small></div><button type="button" id="chpw" class="whobtn" title="Change password" aria-label="Change password"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M16 7l3 3M19 4l2 2"/></svg></button><button type="button" id="signout" class="whobtn" title="Sign out" aria-label="Sign out"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></button></div>
+</aside>
+
+<header class="mbar"><button type="button" id="nav-btn" aria-label="Open menu" aria-expanded="false" aria-controls="sidenav"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button><img src="img/bigben-logo.png" alt="Big Ben" width="220" height="81"><b>Diesel Utilization</b></header>
+<div class="scrim" id="scrim"></div>
+<main class="wrap">
+  <div class="topline">
+    <div class="m-plant fld"><label for="plant-sel-m" class="sr">Plant</label><select id="plant-sel-m"><option value="">All plants</option><option value="RMC">Batching Plant (RMC)</option><option value="RMP">Raw Materials Plant (RMP)</option></select></div>
+    <div class="clock" aria-label="Current date and time"><span class="cd" id="clock-d"></span><span class="ct" id="clock-t"></span><span class="cz">PHT</span></div>
+  </div>
+  <div id="status" class="notice" hidden></div>
+
+  <!-- DASHBOARD -->
+  <section id="v-dashboard" data-view>
+    <h2 class="sec">Fuel position</h2>
+    <p class="lead" id="dash-lead">Stock on hand, this month's movement, and units burning more than their standard rate.</p>
+    <div class="grid g-dash">
+      <div class="panel">
+        <h3>Tank levels</h3>
+        <div class="gauges" id="gauges"></div>
+      </div>
+      <div class="grid" style="align-content:start">
+        <div class="kpis" id="kpis"></div>
+        <div class="panel chart">
+          <h3>Liters issued, last 30 days</h3>
+          <div id="chart30"></div>
+        </div>
+      </div>
+    </div>
+    <div class="grid g-form" style="margin-top:16px">
+      <div class="panel">
+        <h3>Needs attention</h3>
+        <div class="alerts" id="alerts"></div>
+      </div>
+      <div class="panel">
+        <h3 id="top-title">Top consumers this month</h3>
+        <div class="tbl-wrap"><table id="top-tbl"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ISSUE -->
+  <section id="v-issue" data-view hidden>
+    <h2 class="sec">Issue fuel</h2>
+    <p class="lead">Record every dispensing from the plant tank. Opening and closing meter readings give the distance or hours run, and the L/km or L/hr for the slip.</p>
+    <form class="panel" id="f-issue" autocomplete="off" style="margin-bottom:16px">
+      <div class="entry-head"><h3>Consumption entry</h3></div>
+      <div class="fgrid">
+        <div class="fld"><label for="is-date">Date <span class="req">*</span></label><input type="date" id="is-date" required></div>
+        <div class="fld"><label for="is-time">Time</label><input type="time" id="is-time"></div>
+        <div class="fld"><label for="is-unit">Code / Vehicle <span class="req">*</span></label><input id="is-unit" list="unit-list" required placeholder="Type code or vehicle name…"><datalist id="unit-list"></datalist></div>
+        <div class="fld"><label for="is-slip">Issuance # <span class="req">*</span></label><input id="is-slip" required placeholder="e.g. 33728"></div>
+        <div class="fld"><label for="is-req">Requisition slip #</label><input id="is-req" placeholder="e.g. RS-0042"></div>
+        <div class="fld"><label for="is-site">Business unit / site <span class="req">*</span></label><input id="is-site" list="site-list" required placeholder="e.g. Big Ben Logistics"></div>
+        <div class="fld"><label for="is-plant">Plant <span class="req">*</span></label><select id="is-plant" required><option value="">Select plant…</option><option value="RMC">RMC · Batching Plant</option><option value="RMP">RMP · Raw Materials Plant</option></select></div>
+        <div class="fld"><label for="is-liters">Liters <span class="req">*</span></label><input type="number" id="is-liters" min="0.01" step="0.01" required placeholder="0.00"></div>
+        <div class="fld span4"><label aria-hidden="true">Unit details</label><span class="hint" id="is-unit-hint" style="padding-top:8px"></span></div>
+      </div>
+      <div class="fgrid c5">
+        <div class="fld"><label for="is-operator">Driver / operator</label><input id="is-operator" list="driver-list" placeholder="Type or select driver…"><datalist id="driver-list"></datalist></div>
+        <div class="fld"><label for="is-equip">Equipment / service + plate no.</label><input id="is-equip" list="equip-list" placeholder="Type or select equipment…"><datalist id="equip-list"></datalist></div>
+        <div class="fld"><label for="is-loc">Project location</label><input id="is-loc" list="loc-list" placeholder="Type or select location…"><datalist id="loc-list"></datalist></div>
+        <div class="fld"><label for="is-remarks">Notes</label><input id="is-remarks" placeholder="Optional"></div>
+        <div class="fld"><label for="is-by">Encoded by <span class="req">*</span></label><input id="is-by" class="me" required readonly></div>
+      </div>
+      <div class="meter-sec">
+        <p class="sub-h">Meter readings: opening and closing <small>(optional · tick ⚠ for a defective or estimated reading)</small></p>
+        <div class="mgrid">
+          <div class="fld"><label for="is-odo-o" class="km">Odo opening (km)</label><div class="mtr"><label class="flagbox" title="Defective or estimated reading"><input type="checkbox" id="is-odo-of" aria-label="Flag odometer opening">⚠</label><input type="number" id="is-odo-o" min="0" step="0.1" placeholder="Opening"></div></div>
+          <div class="fld"><label for="is-odo-c" class="km">Odo closing (km)</label><div class="mtr"><label class="flagbox" title="Defective or estimated reading"><input type="checkbox" id="is-odo-cf" aria-label="Flag odometer closing">⚠</label><input type="number" id="is-odo-c" min="0" step="0.1" placeholder="Closing"></div></div>
+          <div class="fld"><label>Distance run (km)</label><output class="auto" id="is-km">auto</output></div>
+          <div class="sep" aria-hidden="true"></div>
+          <div class="fld"><label for="is-hr-o" class="hr">Hr meter opening (hrs)</label><div class="mtr"><label class="flagbox" title="Defective or estimated reading"><input type="checkbox" id="is-hr-of" aria-label="Flag hour meter opening">⚠</label><input type="number" id="is-hr-o" min="0" step="0.1" placeholder="Opening"></div></div>
+          <div class="fld"><label for="is-hr-c" class="hr">Hr meter closing (hrs)</label><div class="mtr"><label class="flagbox" title="Defective or estimated reading"><input type="checkbox" id="is-hr-cf" aria-label="Flag hour meter closing">⚠</label><input type="number" id="is-hr-c" min="0" step="0.1" placeholder="Closing"></div></div>
+          <div class="fld"><label>Hours run</label><output class="auto" id="is-hrs">auto</output></div>
+        </div>
+      </div>
+      <div class="form-foot">
+        <div class="preview" id="is-preview"></div>
+        <div class="actions"><span class="msg" id="is-msg" role="status"></span><button type="button" id="is-clear">Clear form</button><button class="primary" type="submit">+ Add entry</button></div>
+      </div>
+    </form>
+    <div class="panel">
+      <div class="toolbar">
+        <div class="fld"><label for="il-month">Month</label><input type="month" id="il-month"></div>
+        <div class="fld"><label for="il-unit">Unit</label><input id="il-unit" list="unit-list" placeholder="All units" autocomplete="off"></div>
+        <div class="spacer"></div>
+        <button type="button" id="il-csv">Export CSV</button>
+      </div>
+      <div class="tbl-wrap"><table id="il-tbl"></table></div>
+    </div>
+  </section>
+
+  <section id="v-receive" data-view hidden>
+    <h2 class="sec">Receive delivery</h2>
+    <p class="lead">Log each tanker delivery against the supplier's delivery receipt. Fuel is costed FIFO: issuances use the price of the oldest delivery still in the tank.</p>
+    <form class="panel" id="f-recv" autocomplete="off" style="margin-bottom:16px">
+      <div class="entry-head"><h3>Fuel deliveries</h3></div>
+      <div class="fgrid">
+        <div class="fld"><label for="rc-date">Date <span class="req">*</span></label><input type="date" id="rc-date" required></div>
+        <div class="fld"><label for="rc-time">Time</label><input type="time" id="rc-time"></div>
+        <div class="fld span2"><label for="rc-supplier">Supplier / DR no.</label><input id="rc-supplier" list="supplier-list" placeholder="e.g. PETRON DR#8013040526"><datalist id="supplier-list"></datalist></div>
+        <div class="fld"><label for="rc-plant">Plant <span class="req">*</span></label><select id="rc-plant" required><option value="">Select plant…</option><option value="RMC">RMC · Batching Plant</option><option value="RMP">RMP · Raw Materials Plant</option></select></div>
+        <div class="fld"><label for="rc-liters">Liters delivered <span class="req">*</span></label><input type="number" id="rc-liters" min="0.01" step="0.01" required placeholder="0.00"></div>
+        <div class="fld"><label for="rc-price">Price per liter (₱) <span class="req">*</span></label><input type="number" id="rc-price" min="0.01" step="0.01" required placeholder="0.00"></div>
+        <div class="fld"><label>Amount</label><output class="auto" id="rc-amt">auto</output></div>
+        <div class="fld span2"><label>Stock after delivery</label><output class="auto" id="rc-after">auto</output></div>
+      </div>
+      <div class="form-foot">
+        <span class="msg" id="rc-msg" role="status"></span>
+        <div class="actions"><button type="button" id="rc-clear">Clear form</button><button class="primary" type="submit">+ Add delivery</button></div>
+      </div>
+    </form>
+    <div class="panel">
+      <div class="toolbar">
+        <div class="fld"><label for="rl-month">Month</label><input type="month" id="rl-month"></div>
+        <div class="spacer"></div>
+        <button type="button" id="rl-csv">Export CSV</button>
+      </div>
+      <div class="tbl-wrap"><table id="rl-tbl"></table></div>
+    </div>
+  </section>
+
+  <!-- UNITS -->
+  <section id="v-stock" data-view hidden>
+    <h2 class="sec">Fuel stock inventory</h2>
+    <p class="lead">Record daily physical tank dip readings per plant. The system compares the measured tank level change against the pump meters and total system consumption to flag discrepancies.</p>
+    <div class="grid" id="dp-cards" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));margin-bottom:16px"></div>
+    <form class="panel" id="f-dip" autocomplete="off" style="margin-bottom:16px">
+      <div class="entry-head"><h3>Dipstick (tank dip) vs consumption</h3></div>
+      <div class="fgrid">
+        <div class="fld"><label for="dp-date">Date <span class="req">*</span></label><input type="date" id="dp-date" required></div>
+        <div class="fld"><label for="dp-plant">Plant <span class="req">*</span></label><select id="dp-plant" required><option value="">Select plant…</option><option value="RMC">RMC · Batching Plant</option><option value="RMP">RMP · Raw Materials Plant</option></select></div>
+        <div class="fld"><label for="dp-od">Opening dip (L) <span class="req">*</span></label><input type="number" id="dp-od" min="0" step="0.01" required placeholder="e.g. 12500"></div>
+        <div class="fld"><label for="dp-cd">Closing dip (L) <span class="req">*</span></label><input type="number" id="dp-cd" min="0" step="0.01" required placeholder="e.g. 10200"></div>
+        <div class="fld span2"><label for="dp-notes">Notes</label><input id="dp-notes" placeholder="Optional remarks"></div>
+        <div class="fld"><label for="dp-om1">Opening meter 1 (L)</label><div class="mtr"><input type="number" id="dp-om1" min="0" step="0.01" placeholder="e.g. 54000"><label class="flagbox" title="Defective or estimated reading"><input type="checkbox" id="dp-om1f" aria-label="Flag opening meter 1">⚠</label></div></div>
+        <div class="fld"><label for="dp-cm1">Closing meter 1 (L)</label><div class="mtr"><input type="number" id="dp-cm1" min="0" step="0.01" placeholder="e.g. 56500"><label class="flagbox" title="Defective or estimated reading"><input type="checkbox" id="dp-cm1f" aria-label="Flag closing meter 1">⚠</label></div></div>
+        <div class="fld"><label for="dp-om2">Opening meter 2 (L)</label><div class="mtr"><input type="number" id="dp-om2" min="0" step="0.01" placeholder="e.g. 54000"><label class="flagbox" title="Defective or estimated reading"><input type="checkbox" id="dp-om2f" aria-label="Flag opening meter 2">⚠</label></div></div>
+        <div class="fld"><label for="dp-cm2">Closing meter 2 (L)</label><div class="mtr"><input type="number" id="dp-cm2" min="0" step="0.01" placeholder="e.g. 56500"><label class="flagbox" title="Defective or estimated reading"><input type="checkbox" id="dp-cm2f" aria-label="Flag closing meter 2">⚠</label></div></div>
+        <div class="fld span2"><label for="dp-by">Encoded by <span class="req">*</span></label><input id="dp-by" class="me" required readonly></div>
+      </div>
+      <div class="meter-sec">
+        <p class="sub-h">Reconciliation for the day <small>(auto)</small></p>
+        <div class="fgrid">
+          <div class="fld"><label>Deliveries received</label><output class="auto" id="dp-rcv">auto</output></div>
+          <div class="fld"><label>Dip usage</label><output class="auto" id="dp-use">auto</output><span class="hint">Opening + deliveries − closing</span></div>
+          <div class="fld"><label>Pump meters dispensed</label><output class="auto" id="dp-mtr">auto</output></div>
+          <div class="fld"><label>System consumption</label><output class="auto" id="dp-sys">auto</output><span class="hint">Issuances encoded for the day</span></div>
+          <div class="fld"><label>Dip vs system</label><output class="auto" id="dp-d1">auto</output></div>
+          <div class="fld"><label>Meter vs system</label><output class="auto" id="dp-d2">auto</output></div>
+        </div>
+      </div>
+      <div class="form-foot">
+        <span class="meta">Dip readings are for reconciliation only. They do not change the book stock; variances go through the stock adjustment process.</span>
+        <div class="actions"><span class="msg" id="dp-msg" role="status"></span><button type="button" id="dp-clear">Clear form</button><button class="primary" type="submit">+ Add dip reading</button></div>
+      </div>
+    </form>
+    <div class="panel">
+      <div class="toolbar">
+        <div class="fld"><label for="dl-month">Month</label><input type="month" id="dl-month"></div>
+        <div class="spacer"></div>
+        <button type="button" id="dl-csv">Export CSV</button>
+      </div>
+      <div class="tbl-wrap"><table id="dl-tbl"></table></div>
+    </div>
+  </section>
+
+  <section id="v-adjust" data-view hidden>
+    <h2 class="sec">Stock adjustment</h2>
+    <p class="lead">Adjust book stock only through an approved request. A request has no effect on stock or FIFO cost until the Inventory Controller of that plant or the Inventory Management Head approves it; a requester cannot approve their own request.</p>
+    <div class="kpis" id="adj-kpis" style="margin-bottom:16px"></div>
+    <form class="panel" id="f-adj" autocomplete="off" style="margin-bottom:16px">
+      <div class="entry-head"><h3>Adjustment request</h3></div>
+      <div class="fgrid">
+        <div class="fld"><label for="aj-date">Effective date <span class="req">*</span></label><input type="date" id="aj-date" required></div>
+        <div class="fld"><label for="aj-plant">Plant <span class="req">*</span></label><select id="aj-plant" required><option value="">Select plant…</option><option value="RMC">RMC · Batching Plant</option><option value="RMP">RMP · Raw Materials Plant</option></select></div>
+        <div class="fld span2"><label for="aj-dip">Reference dip reading</label><select id="aj-dip"><option value="">None</option></select><span class="hint">Pick a flagged day to prefill the liters.</span></div>
+        <div class="fld"><label for="aj-dir">Adjustment <span class="req">*</span></label><select id="aj-dir" required><option value="decrease">Decrease (loss / shortage)</option><option value="increase">Increase (gain / excess)</option></select></div>
+        <div class="fld"><label for="aj-liters">Liters <span class="req">*</span></label><input type="number" id="aj-liters" min="0.01" step="0.01" required placeholder="0.00"></div>
+        <div class="fld span2"><label for="aj-reason">Reason <span class="req">*</span></label><select id="aj-reason" required><option value="">Select reason…</option><option>Dip variance</option><option>Evaporation / temperature</option><option>Leak or spill</option><option>Suspected pilferage</option><option>Pump meter error</option><option>Encoding error</option><option>Water drained from tank</option><option>Other</option></select></div>
+        <div class="fld span2"><label for="aj-remarks">Justification <span class="req">*</span></label><input id="aj-remarks" required placeholder="What happened and what was checked"></div>
+        <div class="fld"><label>Book stock before → after</label><output class="auto" id="aj-book">auto</output></div>
+        <div class="fld"><label>Estimated value (FIFO)</label><output class="auto" id="aj-val">auto</output></div>
+        <div class="fld span2"><label for="aj-by">Requested by <span class="req">*</span></label><input id="aj-by" class="me" required readonly></div>
+      </div>
+      <div class="form-foot">
+        <span class="meta">Submitting creates a pending request. Stock changes only after approval.</span>
+        <div class="actions"><span class="msg" id="aj-msg" role="status"></span><button type="button" id="aj-clear">Clear form</button><button class="primary" type="submit">Submit for approval</button></div>
+      </div>
+    </form>
+    <div class="panel">
+      <div class="toolbar">
+        <div class="fld"><label for="al-status">Status</label><select id="al-status"><option value="">All</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></div>
+        <div class="fld"><label for="al-month">Month</label><input type="month" id="al-month"></div>
+        <div class="spacer"></div>
+        <button type="button" id="al-csv">Export CSV</button>
+      </div>
+      <p class="msg" id="al-msg" role="status" style="margin:0 0 8px"></p>
+      <div class="tbl-wrap"><table id="al-tbl"></table></div>
+    </div>
+  </section>
+
+  <section id="v-units" data-view hidden>
+    <h2 class="sec">Units &amp; setup</h2>
+    <p class="lead">Register every vehicle, equipment and generator that draws diesel. Imported from the Vehicle List sheet. The standard rate (L/km or L/hr) is the benchmark for flagging over-consumption.</p>
+    <div class="grid g-form">
+      <div class="grid" style="align-content:start">
+        <form class="panel" id="f-unit" autocomplete="off">
+          <h3 id="fu-title">Add unit</h3>
+          <div class="row">
+            <div class="fld"><label for="un-code">Unit code</label><input id="un-code" required placeholder="e.g. DT28/10W - BBL"></div>
+            <div class="fld"><label for="un-type">Type</label>
+              <select id="un-type"></select></div>
+          </div>
+          <div class="fld"><label for="un-name">Description / model</label><input id="un-name" placeholder="e.g. NKM 4472/DT28-10W/BBL"></div>
+          <div class="row">
+            <div class="fld"><label for="un-plate">Plate no.</label><input id="un-plate"></div>
+            <div class="fld"><label for="un-operator">Driver / operator</label><input id="un-operator"></div>
+          </div>
+          <div class="row">
+            <div class="fld"><label for="un-meter">Meter type</label><select id="un-meter"><option value="km">Odometer (km)</option><option value="hr">Hour meter (hr)</option></select></div>
+            <div class="fld"><label for="un-std" id="un-std-lbl">Standard rate (L/km)</label><input type="number" id="un-std" min="0" step="0.001" placeholder="Uses default"></div>
+          </div>
+          <div class="fld"><label for="un-site">Project site / business unit</label><input id="un-site" list="site-list"><datalist id="site-list"></datalist></div>
+          <div class="row">
+            <div class="fld"><label for="un-tank">Tank capacity (L)</label><input type="number" id="un-tank" min="0" step="1"></div>
+            <div class="fld"><label for="un-status">Status</label><select id="un-status"><option>Active</option><option>Defective</option><option>Inactive</option></select></div>
+          </div>
+          <div class="actions"><button class="primary" type="submit" id="un-save">Add unit</button><button type="button" class="ghost" id="un-cancel" hidden>Cancel edit</button><span class="msg" id="un-msg" role="status"></span></div>
+        </form>
+        <form class="panel" id="f-cfg" autocomplete="off">
+          <h3>Tank settings</h3>
+          <div class="row">
+            <div class="fld"><label for="cf-plant">Plant</label><select id="cf-plant"><option value="RMC">Batching Plant (RMC)</option><option value="RMP">Raw Materials Plant (RMP)</option></select></div>
+            <div class="fld"><label for="cf-name">Tank name</label><input id="cf-name" placeholder="e.g. Diesel tank 1"></div>
+          </div>
+          <div class="row">
+            <div class="fld"><label for="cf-cap">Capacity (L)</label><input type="number" id="cf-cap" min="0" step="1"></div>
+            <div class="fld"><label for="cf-reo">Reorder level (L)</label><input type="number" id="cf-reo" min="0" step="1"></div>
+          </div>
+          <div class="row">
+            <div class="fld"><label for="cf-open">Opening stock (L)</label><input type="number" id="cf-open" min="0" step="0.01"><span class="hint">Physical count when you started. Costed first under FIFO.</span></div>
+            <div class="fld"><label for="cf-oprice">Opening cost per L (₱)</label><input type="number" id="cf-oprice" min="0" step="0.01"></div>
+          </div>
+          <div class="row">
+            <div class="fld"><label for="cf-maxkm">Default max rate (L/km)</label><input type="number" id="cf-maxkm" min="0" step="0.001" placeholder="0.9"><span class="hint">Applies to both plants. Used when a unit has no standard; at or above is Over.</span></div>
+            <div class="fld"><label for="cf-maxhr">Default max rate (L/hr)</label><input type="number" id="cf-maxhr" min="0" step="0.01" placeholder="Not set"></div>
+          </div>
+          <div class="actions"><button class="primary" type="submit" id="cf-save">Save settings</button><span class="msg" id="cf-msg" role="status"></span></div>
+        </form>
+      </div>
+      <div class="panel">
+        <h3>Registered units</h3>
+        <div class="toolbar">
+          <div class="fld"><label for="ut-q">Search</label><input id="ut-q" type="search" placeholder="Code, plate, operator, site"></div>
+          <div class="fld"><label for="ut-type">Type</label><select id="ut-type"></select></div>
+          <div class="fld"><label for="ut-status">Status</label><select id="ut-status"><option value="">All</option><option>Active</option><option>Defective</option><option>Inactive</option></select></div>
+          <div class="spacer"></div>
+          <button type="button" id="ut-csv">Export CSV</button>
+        </div>
+        <p class="meta" id="ut-count" style="margin:0 0 8px"></p>
+        <div class="tbl-wrap"><table id="un-tbl"></table></div>
+        <div class="actions" style="margin-top:12px"><button type="button" id="ut-more" hidden>Show more</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REPORTS -->
+  <section id="v-log" data-view hidden>
+    <h2 class="sec">Consumption log report</h2>
+    <p class="lead" id="lg-lead">Every fuel issuance with its opening and closing readings, distance or hours run, and fuel rate. Filter by date, site, unit or status; group for subtotals.</p>
+    <div class="panel">
+      <div class="toolbar wrapf">
+        <div class="fld"><label for="lg-from">From</label><input type="date" id="lg-from"></div>
+        <div class="fld"><label for="lg-to">To</label><input type="date" id="lg-to"></div>
+        <div class="fld"><label for="lg-site">Business unit / site</label><input id="lg-site" list="site-list" placeholder="All"></div>
+        <div class="fld"><label for="lg-unit">Code / vehicle</label><input id="lg-unit" list="unit-list" placeholder="All units"></div>
+        <div class="fld"><label for="lg-status">Status</label><select id="lg-status"><option value="">All</option><option value="ok">Good</option><option value="bad">Over</option><option value="warn">Watch</option><option value="flag">Flagged</option><option value="na">No reading</option></select></div>
+        <div class="fld"><label for="lg-q">Search</label><input id="lg-q" type="search" placeholder="Issuance #, driver, location"></div>
+        <div class="fld"><label for="lg-group">Group by</label><select id="lg-group"><option value="">None (by date)</option><option value="site">Business unit / site</option><option value="plant">Plant</option><option value="unit">Code / vehicle</option><option value="date">Date</option><option value="operator">Driver / operator</option></select></div>
+        <div class="actions" style="align-self:end"><button type="button" id="lg-reset">Reset</button><button type="button" id="lg-csv" class="primary">Export CSV</button></div>
+      </div>
+      <div class="kpis" id="lg-kpis"></div>
+      <div class="tbl-wrap"><table id="lg-tbl"></table></div>
+    </div>
+  </section>
+
+  <section id="v-accounts" data-view hidden>
+    <h2 class="sec">User accounts</h2>
+    <p class="lead">Who can sign in, their role and plant. New accounts get a temporary password that the person must change at first sign-in. To reset a forgotten password, run <code>npm run admin -- reset-password &lt;username&gt;</code> (see README) or use the Firebase console.</p>
+    <div class="panel" style="margin-bottom:16px">
+      <h3>Role access</h3>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Role</th><th>Plants</th><th>Issue fuel &amp; deliveries</th><th>Dip readings</th><th>Request adjustment</th><th>Approve adjustment</th><th>Units &amp; tank settings</th><th>Delete records</th><th>User accounts</th></tr></thead>
+        <tbody>
+          <tr><td>Inventory Management Head</td><td>Both</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Both plants</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+          <tr><td>Inventory Controller</td><td>Own plant</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Own plant</td><td>Yes</td><td>Yes</td><td>—</td></tr>
+          <tr><td>MIC Staff</td><td>Own plant</td><td>Yes</td><td>Yes</td><td>Yes</td><td>—</td><td>View</td><td>—</td><td>—</td></tr>
+          <tr><td>Inventory Accuracy Specialist</td><td>Both</td><td>View</td><td>Yes</td><td>Yes</td><td>—</td><td>View</td><td>—</td><td>—</td></tr>
+        </tbody></table></div>
+      <p class="meta" style="margin:10px 0 0">These permissions are enforced by the Firestore security rules on the server, not only by this page.</p>
+    </div>
+    <div class="grid g-form">
+      <form class="panel" id="f-acct" autocomplete="off">
+        <h3>Add account</h3>
+        <div class="fld"><label for="ac-name">Full name</label><input id="ac-name" required></div>
+        <div class="row">
+          <div class="fld"><label for="ac-user">Username</label><input id="ac-user" required autocapitalize="none" spellcheck="false"></div>
+          <div class="fld"><label for="ac-role">Role</label><select id="ac-role"><option value="staff">MIC Staff</option><option value="controller">Inventory Controller</option><option value="auditor">Inventory Accuracy Specialist</option><option value="head">Inventory Management Head</option></select></div>
+        </div>
+        <div class="row">
+          <div class="fld"><label for="ac-title">Position title</label><input id="ac-title" placeholder="e.g. MIC Staff"></div>
+          <div class="fld"><label for="ac-plant">Plant</label><select id="ac-plant"><option value="RMC">RMC · Batching Plant</option><option value="RMP">RMP · Raw Materials Plant</option><option value="">Both plants</option></select></div>
+        </div>
+        <div class="fld"><label for="ac-pw">Temporary password</label><input id="ac-pw" required minlength="8" autocomplete="new-password"><span class="hint">At least 8 characters. Give it to the person; they must change it at first sign-in.</span></div>
+        <div class="actions"><button class="primary" type="submit">Add account</button><span class="msg" id="ac-msg" role="status"></span></div>
+      </form>
+      <div class="panel">
+        <h3>Accounts</h3>
+        <p class="msg" id="at-msg" role="status" style="margin:0 0 8px"></p>
+        <div class="tbl-wrap"><table id="at-tbl"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="v-reports" data-view hidden>
+    <h2 class="sec">Monthly utilization report</h2>
+    <p class="lead">Per-unit consumption for the month, measured fill-to-fill against the previous meter reading. Variance compares actual rate with the unit's standard.</p>
+    <div class="panel">
+      <div class="toolbar">
+        <div class="fld"><label for="rp-month">Month</label><input type="month" id="rp-month"></div>
+        <div class="spacer"></div>
+        <button type="button" id="rp-csv">Export CSV</button>
+      </div>
+      <div class="kpis" id="rp-kpis" style="margin-bottom:16px"></div>
+      <div class="tbl-wrap"><table id="rp-tbl"></table></div>
+      <p class="meta" style="margin-top:12px">Rate uses only fills with a valid previous reading. Rates are liters per km (odometer) or liters per hour (hour meter). With a unit standard: <span class="pill bad">Over</span> more than 15% above it, <span class="pill warn">Watch</span> 5–15% above, <span class="pill ok">Good</span> within. Without one, the default max rate in Tank settings decides Good or Over.</p>
+    </div>
+  </section>
+</main>
+</div>
+
+
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s);
+const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0};
+const fmt=(n,d=0)=>Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:d,maximumFractionDigits:d});
+const peso=n=>"₱"+fmt(n,2);
+const pad=n=>String(n).padStart(2,"0");
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
+const thisMonth=()=>today().slice(0,7);
+const monthLabel=m=>{if(!m)return"";const[y,mo]=m.split("-");return new Date(+y,+mo-1,1).toLocaleDateString("en-PH",{month:"long",year:"numeric"})};
+const HIGH=0.15, WATCH=0.05, PAGE=100, CHUNK_MAX=280;
+const TYPES=["Dump truck","Transit mixer","Tractor head","Water / oil truck","Service vehicle","Crane / boom truck","Excavator / backhoe","Loader","Bulldozer","Grader","Roller / pison","Paver","Rotomill","Forklift","Generator set","Compressor / pump","Drum / gallon","Other"];
+
+const PLANTS=[{id:"RMC",name:"Batching Plant"},{id:"RMP",name:"Raw Materials Plant"}];
+const plantName=id=>(PLANTS.find(p=>p.id===id)||{}).name||"No plant";
+let savedPlant="";try{savedPlant=localStorage.getItem("dus-plant")||""}catch(e){}
+const S={acct:null,users:{},directory:[],subs:null,be:null,loginMode:"signin",plant:PLANTS.some(p=>p.id===savedPlant)?savedPlant:"",units:[],unitMap:{},codeMap:{},chunks:{},unitChunk:{},receipts:[],issuances:[],cfg:{},
+  dipsticks:[],adjReq:[],approvals:{},deciding:null,loaded:{users:false,units:false,receipts:false,issuances:false,dipsticks:false,adj:false,appr:false,cfg:false},
+  db:null,user:null,uid:null,canWrite:null,canAdmin:false,names:{},editUnit:null,confirmDel:null,unitLimit:PAGE};
+
+/* ---------- accounts & roles ---------- */
+const ROLES={head:"Inventory Management Head",controller:"Inventory Controller",staff:"MIC Staff",auditor:"Inventory Accuracy Specialist"};
+const role=()=>S.acct?S.acct.role:"";
+const plantLock=()=>S.acct&&(S.acct.role==="controller"||S.acct.role==="staff")?S.acct.plant||"":"";
+const may={
+  encode:()=>["head","controller","staff"].includes(role()),
+  dip:()=>!!S.acct, adjReq:()=>!!S.acct,
+  units:()=>["head","controller"].includes(role()),
+  settings:()=>["head","controller"].includes(role()),
+  del:()=>["head","controller"].includes(role()),
+  approve:p=>role()==="head"||(role()==="controller"&&S.acct.plant===p),
+  accounts:()=>role()==="head"
+};
+const initials=n=>{const w=String(n||"").trim().split(/\s+/).filter(x=>/^[A-Za-z]/.test(x));return w.length?(w[0][0]+(w.length>1?w[w.length-1][0]:"")).toUpperCase():"?"};
+const avColor=u=>{let h=0;for(const c of String(u))h=(h*31+c.charCodeAt(0))>>>0;return `var(--av${h%6+1})`};
+/* ---------- tabs ---------- */
+const TABS=["dashboard","issue","receive","stock","adjust","units","log","reports","accounts"];
+function showTab(){
+  const t=TABS.includes(location.hash.slice(1))?location.hash.slice(1):"dashboard";
+  document.querySelectorAll("[data-view]").forEach(s=>s.hidden=s.id!=="v-"+t);
+  document.querySelectorAll("nav.tabs a").forEach(a=>{if(a.dataset.tab===t)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")});
+}
+window.addEventListener("hashchange",()=>{showTab();setNav(false)});
+function setNav(open){document.body.classList.toggle("nav-open",open);const b=document.getElementById("nav-btn");if(!b)return;b.setAttribute("aria-expanded",String(open));b.setAttribute("aria-label",open?"Close menu":"Open menu");if(open){const a=document.querySelector("aside.side nav.tabs a[aria-current]")||document.querySelector("aside.side nav.tabs a");if(a)a.focus()}}
+document.addEventListener("click",e=>{if(e.target.closest("#nav-btn")){setNav(!document.body.classList.contains("nav-open"));return}if(e.target.closest("#scrim")||e.target.closest("aside.side nav.tabs a")||e.target.closest("#signout"))setNav(false)});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.body.classList.contains("nav-open")){setNav(false);document.getElementById("nav-btn").focus()}});
+function setStatus(text){const el=$("#status");if(!text){el.hidden=true;return}el.textContent=text;el.hidden=false}
+
+/* ---------- units index ---------- */
+function rebuildUnits(){
+  const all=[];S.unitChunk={};
+  Object.keys(S.chunks).sort().forEach(cid=>{(S.chunks[cid].units||[]).forEach(u=>{all.push(u);S.unitChunk[u.id]=cid})});
+  S.units=all;S.unitMap={};S.codeMap={};
+  S.nameMap={};
+  all.forEach(u=>{S.unitMap[u.id]=u;const k=String(u.code||"").toUpperCase();if(!(k in S.codeMap))S.codeMap[k]=u;const n=String(u.name||"").toUpperCase();if(n&&!(n in S.nameMap))S.nameMap[n]=u});
+}
+const unitById=id=>S.unitMap[id];
+const unitByCode=c=>{const k=String(c||"").trim().toUpperCase();return S.codeMap[k]||(S.nameMap||{})[k]};
+const isActive=u=>u&&u.status!=="Inactive"&&u.active!==false;
+
+/* ---------- derived ---------- */
+const pcfg=p=>((S.cfg.plants||{})[p])||{};
+const plantIds=p=>p?[p]:PLANTS.map(x=>x.id);
+const inPlant=(r,p)=>!p||r.plant===p;
+const scoped=arr=>arr.filter(r=>inPlant(r,S.plant));
+/* FIFO costing: per plant, opening stock first, then deliveries in date/time order; issuances draw from the oldest layer */
+let fifoCache=null;
+function fifo(){
+  if(fifoCache)return fifoCache;
+  const cost={},plants={};
+  PLANTS.forEach(p=>{
+    const c=pcfg(p.id),layers=[];
+    if(num(c.openingStock)>0)layers.push({left:num(c.openingStock),price:num(c.openingPrice),src:"Opening stock"});
+    const ev=[];
+    S.receipts.filter(r=>r.plant===p.id).forEach(r=>ev.push({k:r.date+" "+(r.time||"00:00")+" 0 "+(r.createdAt||""),r}));
+    S.issuances.filter(i=>i.plant===p.id).forEach(i=>ev.push({k:i.date+" "+(i.time||"00:00")+" 1 "+(i.createdAt||""),i}));
+    approvedAdj().filter(a=>a.plant===p.id&&a.adjLiters).forEach(d=>ev.push({k:evKey(d,3),d}));
+    ev.sort((a,b)=>a.k.localeCompare(b.k));
+    let lastPrice=num(c.openingPrice);
+    ev.forEach(e=>{
+      if(e.r){layers.push({left:num(e.r.liters),price:num(e.r.price),src:e.r.supplier||e.r.date});if(num(e.r.price)>0)lastPrice=num(e.r.price);return}
+      if(e.d&&num(e.d.adjLiters)>0){layers.push({left:num(e.d.adjLiters),price:lastPrice,src:"Dipstick gain"});cost[e.d.id]={amount:num(e.d.adjLiters)*lastPrice,perL:lastPrice,short:0};return}
+      if(e.d)e.i={id:e.d.id,liters:-num(e.d.adjLiters)};
+      let need=num(e.i.liters),amt=0,parts=[];
+      while(need>1e-9&&layers.length){const L=layers[0],take=Math.min(need,L.left);amt+=take*L.price;parts.push({l:take,price:L.price});L.left-=take;need-=take;if(L.left<=1e-9)layers.shift()}
+      const short=need>1e-9?need:0;if(short)amt+=short*lastPrice;
+      cost[e.i.id]={amount:amt,perL:num(e.i.liters)?amt/num(e.i.liters):0,short,parts};
+    });
+    plants[p.id]={value:layers.reduce((a,L)=>a+L.left*L.price,0),liters:layers.reduce((a,L)=>a+L.left,0),nextPrice:layers.length?layers[0].price:lastPrice,layers};
+  });
+  return fifoCache={cost,plants};
+}
+const costOf=i=>(fifo().cost[i.id]||{amount:0,perL:0,short:0});
+const sumCost=list=>list.reduce((a,i)=>a+costOf(i).amount,0);
+function stockValue(p){const F=fifo().plants;return plantIds(p).reduce((a,id)=>a+F[id].value,0)}
+function nextPrice(p){const F=fifo().plants;return p?F[p].nextPrice:null}
+function stock(p){
+  return plantIds(p).reduce((a,id)=>a+num(pcfg(id).openingStock),0)
+    +S.receipts.filter(r=>inPlant(r,p)).reduce((a,r)=>a+num(r.liters),0)
+    -S.issuances.filter(r=>inPlant(r,p)).reduce((a,r)=>a+num(r.liters),0)
+    +approvedAdj().filter(d=>inPlant(d,p)).reduce((a,d)=>a+d.adjLiters,0);
+}
+/* ---------- approved adjustments (only these touch stock and FIFO) ---------- */
+function approvedAdj(){return Object.entries(S.approvals).filter(([,a])=>a.status==="approved").map(([id,a])=>({id,plant:a.plant,date:a.date,time:"23:59",createdAt:a.decidedAt||"",adjLiters:num(a.liters)}))}
+function adjStatus(r){const a=S.approvals[r.id];return a?a.status:"pending"}
+/* ---------- dipstick ---------- */
+const TOL=0.005;
+const evKey=(x,o)=>x.date+" "+(x.time||"00:00")+" "+o+" "+(x.createdAt||"");
+function bookAt(p,key){
+  let b=num(pcfg(p).openingStock);
+  S.receipts.forEach(r=>{if(r.plant===p&&evKey(r,0)<=key)b+=num(r.liters)});
+  S.issuances.forEach(i=>{if(i.plant===p&&evKey(i,1)<=key)b-=num(i.liters)});
+  approvedAdj().forEach(d=>{if(d.plant===p&&evKey(d,3)<key)b+=d.adjLiters});
+  return b;
+}
+function parseChart(t){return String(t||"").split(/\n+/).map(l=>l.split(/[,;\t ]+/).map(parseFloat)).filter(a=>a.length>=2&&isFinite(a[0])&&isFinite(a[1])).sort((a,b)=>a[0]-b[0])}
+function dipToLiters(p,cm){
+  if(!(cm>=0))return null;const c=pcfg(p),ch=parseChart(c.dipChart);
+  if(ch.length>=2){
+    if(cm<=ch[0][0])return{l:ch[0][1]*(ch[0][0]?cm/ch[0][0]:1),m:"calibration chart"};
+    for(let k=1;k<ch.length;k++)if(cm<=ch[k][0]){const a=ch[k-1],b=ch[k];return{l:a[1]+(b[1]-a[1])*(cm-a[0])/(b[0]-a[0]),m:"calibration chart"}}
+    return{l:ch[ch.length-1][1],m:"calibration chart (top row)"};
+  }
+  const D=num(c.dia),L=num(c.len),H=num(c.ht);
+  if(c.shape==="hcyl"&&D&&L){const r=D/2,h=Math.min(cm,D),A=r*r*Math.acos((r-h)/r)-(r-h)*Math.sqrt(Math.max(0,2*r*h-h*h));return{l:A*L/1000,m:"horizontal cylinder"}}
+  if(c.shape==="vcyl"&&D){const h=H?Math.min(cm,H):cm;return{l:Math.PI*(D/2)*(D/2)*h/1000,m:"vertical cylinder"}}
+  if(c.shape==="rect"&&D&&L){const h=H?Math.min(cm,H):cm;return{l:D*L*h/1000,m:"rectangular tank"}}
+  return null;
+}
+function netFromDip(p,cm,wcm){const a=dipToLiters(p,cm);if(!a)return null;const w=has(wcm)&&num(wcm)>0?dipToLiters(p,num(wcm)):null;return{l:Math.max(0,a.l-(w?w.l:0)),water:w?w.l:0,m:a.m}}
+function dipStatus(v,book){if(v==null)return"na";const pct=book?Math.abs(v)/Math.abs(book):Math.abs(v)>0?1:0;return pct<=TOL?"ok":v<0?"bad":"warn"}
+const DIPLBL={ok:"Within tolerance",bad:"Loss",warn:"Gain",na:"—"};
+function dayRecon(p,date,x){
+  const rcv=S.receipts.filter(r=>r.plant===p&&r.date===date).reduce((a,r)=>a+num(r.liters),0);
+  const sys=S.issuances.filter(i=>i.plant===p&&i.date===date).reduce((a,i)=>a+num(i.liters),0);
+  const use=has(x.openDip)&&has(x.closeDip)?num(x.openDip)+rcv-num(x.closeDip):null;
+  let mtr=null,mflag=false;
+  [[x.om1,x.cm1,x.om1f||x.cm1f],[x.om2,x.cm2,x.om2f||x.cm2f]].forEach(([o,c,f])=>{if(has(o)&&has(c)){if(f)mflag=true;mtr=(mtr||0)+(num(c)-num(o))}});
+  const d1=use!=null?use-sys:null,d2=mtr!=null?mtr-sys:null;
+  const tol=v=>Math.max(2,TOL*Math.max(Math.abs(v||0),sys));
+  let st="ok",label="Balanced";
+  if(d1==null){st="na";label="—"}
+  else if(Math.abs(d1)>tol(use)){st=d1>0?"bad":"warn";label=d1>0?"Shortage":"Excess"}
+  else if(d2!=null&&!mflag&&Math.abs(d2)>tol(mtr)){st="warn";label="Meter mismatch"}
+  if(mflag&&st==="ok")label="Balanced · meter flagged";
+  return{rcv,sys,use,mtr,mflag,d1,d2,st,label};
+}
+const sgn=v=>(v>0?"+":"")+fmt(v,2)+" L";
+const sortKey=i=>i.date+" "+String(i.time||"")+" "+String(i.createdAt||"");
+const has=v=>v!==""&&v!=null&&isFinite(parseFloat(v));
+const kindOf=u=>u&&u.meter==="hr"?"hr":"km";
+function slipRuns(i){
+  const km=has(i.odoOpen)&&has(i.odoClose)&&num(i.odoClose)>num(i.odoOpen)?num(i.odoClose)-num(i.odoOpen):null;
+  const hrs=has(i.hrOpen)&&has(i.hrClose)&&num(i.hrClose)>num(i.hrOpen)?num(i.hrClose)-num(i.hrOpen):null;
+  return{km,hrs,kmFlag:!!(i.odoOpenFlag||i.odoCloseFlag),hrFlag:!!(i.hrOpenFlag||i.hrCloseFlag)};
+}
+function rateOf(i,u){
+  const x=slipRuns(i),L=num(i.liters);
+  const r={...x,rKm:x.km?L/x.km:null,rHr:x.hrs?L/x.hrs:null,kind:null,rate:null,delta:null,flag:"na",flagged:false};
+  let k=kindOf(u);if(!(k==="km"?x.km:x.hrs))k=x.km?"km":x.hrs?"hr":null;
+  if(k){r.kind=k;r.delta=k==="km"?x.km:x.hrs;r.rate=L/r.delta;r.flagged=k==="km"?x.kmFlag:x.hrFlag;r.flag=r.flagged?"flag":flagFor(u,r.rate,k)}
+  return r;
+}
+function computeRates(){const out={};S.issuances.forEach(i=>{out[i.id]=rateOf(i,unitById(i.unitId))});return out}
+function limitFor(u,kind){
+  if(!u)return null;kind=kind||kindOf(u);
+  if(num(u.stdRate)>0&&kind===kindOf(u))return{v:num(u.stdRate),kind:"std"};
+  const d=kind==="hr"?num(S.cfg.defaultMaxHr):(S.cfg.defaultMaxKm==null||S.cfg.defaultMaxKm===""?0.9:num(S.cfg.defaultMaxKm));
+  return d>0?{v:d,kind:"default"}:null;
+}
+function variance(u,rate,k){const l=limitFor(u,k);if(!l||rate==null)return null;return(rate-l.v)/l.v}
+function flagFor(u,rate,k){
+  const l=limitFor(u,k);if(!l||rate==null)return"na";
+  if(l.kind==="default")return rate>=l.v?"bad":"ok";
+  const v=(rate-l.v)/l.v;return v>HIGH?"bad":v>WATCH?"warn":"ok";
+}
+const FLAG={bad:"Over",warn:"Watch",ok:"Good",na:"—",flag:"Flagged"};
+const PILL={bad:"bad",warn:"warn",ok:"ok",na:"na",flag:"warn"};
+const rateUnit=u=>u&&u.meter==="hr"?"L/hr":"L/km";
+const meterUnit=u=>u&&u.meter==="hr"?"hr":"km";
+const rateK=(v,k)=>fmt(v,k==="hr"?2:3)+" "+(k==="hr"?"L/hr":"L/km");
+const rateFmt=(r,u)=>rateK(r,kindOf(u));
+function limitText(u){const l=limitFor(u);return l?rateFmt(l.v,u)+(l.kind==="default"?" (default)":""):"—"}
+function lastReadings(unitId){
+  let odo=null,hr=null,date="";
+  S.issuances.forEach(i=>{if(i.unitId!==unitId)return;
+    [i.odoClose,i.odoOpen].forEach(v=>{if(has(v)&&(odo==null||num(v)>odo)){odo=num(v);date=i.date}});
+    [i.hrClose,i.hrOpen].forEach(v=>{if(has(v)&&(hr==null||num(v)>hr))hr=num(v)});});
+  return{odo,hr,date};
+}
+function monthSummary(month){
+  const rates=computeRates();const rows={};
+  scoped(S.issuances).filter(i=>String(i.date).startsWith(month)).forEach(i=>{
+    const k=i.unitId;
+    const row=rows[k]=rows[k]||{u:unitById(k),code:i.unitCode,unitId:k,fills:0,liters:0,delta:0,ratedL:0};
+    row.fills++;row.liters+=num(i.liters);row.cost=(row.cost||0)+costOf(i).amount;
+    const r=rates[i.id];if(r&&r.delta&&!r.flagged&&r.kind===kindOf(row.u)){row.delta+=r.delta;row.ratedL+=num(i.liters)}
+  });
+  return Object.values(rows).map(r=>{
+    r.rate=r.delta&&r.ratedL?r.ratedL/r.delta:null;
+    r.var=variance(r.u,r.rate);r.flag=r.u?flagFor(r.u,r.rate):"na";return r;
+  }).sort((a,b)=>b.liters-a.liters);
+}
+const codeOf=(u,fallback)=>u?u.code:(fallback?fallback+" (removed)":"(removed)");
+
+/* ---------- names ---------- */
+function resolveNames(){}
+const nameOf=id=>id?((S.users[id]&&S.users[id].name)||"Someone"):"—";
+
+/* ---------- render ---------- */
+function renderAll(){renderAccounts();renderAdjust();renderStock();renderLogReport();renderDash();renderUnitLists();renderLogs();renderUnits();renderReport();renderCfgForm()}
+
+function tankState(p){
+  const c=pcfg(p),cap=num(c.capacity),reo=num(c.reorderLevel),st=stock(p);
+  const pct=cap>0?Math.max(0,Math.min(100,st/cap*100)):0;
+  const pill=st<0?["bad","Negative: check records"]:reo&&st<=reo?["bad","Below reorder level"]:reo&&st<=reo*1.25?["warn","Nearing reorder level"]:reo?["ok","Stock OK"]:null;
+  return{c,cap,reo,st,pct,pill};
+}
+function renderDash(){
+  const st=stock(S.plant);
+  const shown=S.plant?PLANTS.filter(x=>x.id===S.plant):PLANTS;
+  const issAll=scoped(S.issuances);
+  const d0=new Date();d0.setHours(0,0,0,0);const days=[];
+  for(let k=29;k>=0;k--){const d=new Date(d0);d.setDate(d.getDate()-k);days.push(d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()))}
+  const usage=p=>{const set=new Set(days);return S.issuances.filter(i=>inPlant(i,p)&&set.has(i.date)).reduce((a,i)=>a+num(i.liters),0)/30};
+  $("#gauges").innerHTML=shown.map(p=>{const t=tankState(p.id),u=usage(p.id);return `<div class="gauge">
+    <div class="tank" role="img" aria-label="${esc(p.name)} tank ${esc(fmt(t.st))} liters${t.cap?" of "+esc(fmt(t.cap)):""}"><div class="fill" style="height:${t.pct}%"></div><div class="ticks"></div>${t.cap&&t.reo?`<div class="reorder" style="bottom:${Math.min(100,t.reo/t.cap*100)}%"></div>`:""}</div>
+    <div class="gauge-info"><h4>${esc(p.name)} <span class="chip">${esc(p.id)}</span></h4>
+      <div class="big">${esc(fmt(t.st,0))}<small> L</small></div>
+      ${t.pill?`<div><span class="pill ${t.pill[0]}">${esc(t.pill[1])}</span></div>`:""}
+      <div class="meta">${esc(t.c.tankName||"Tank")} · capacity <b>${t.cap?esc(fmt(t.cap))+" L ("+t.pct.toFixed(0)+"%)":"not set"}</b></div>
+      <div class="meta">Reorder at <b>${t.reo?esc(fmt(t.reo))+" L":"not set"}</b></div>
+      <div class="meta">Days of supply <b>${u>0?esc(fmt(t.st/u,1)):"—"}</b></div>
+      ${(()=>{const d=S.dipsticks.filter(x=>x.plant===p.id).sort((a,b)=>evKey(b,2).localeCompare(evKey(a,2)))[0];if(!d)return'<div class="meta">Tank dip <b>no reading yet</b></div>';const R=dayRecon(p.id,d.date,d);return `<div class="meta">Tank dip ${esc(d.date)} <b>${esc(fmt(d.closeDip,0))} L</b> · <span class="pill ${R.st}">${esc(R.label)}${R.d1!=null?" "+esc(sgn(R.d1)):""}</span></div>`})()}
+      <div class="meta">FIFO price now <b>${fifo().plants[p.id].nextPrice?esc(peso(fifo().plants[p.id].nextPrice))+" / L":"—"}</b> · stock value <b>${esc(peso(fifo().plants[p.id].value))}</b></div>
+    </div></div>`}).join("");
+  $("#side-tanks").innerHTML=PLANTS.map(p=>{const t=tankState(p.id);return `<div><div class="lbl">${esc(p.name)}</div><div class="v">${esc(fmt(t.st,0))}<small> L</small></div><div class="meter"><i style="width:${t.pct}%"></i></div></div>`}).join("");
+  const per={};days.forEach(d=>per[d]=0);issAll.forEach(i=>{if(i.date in per)per[i.date]+=num(i.liters)});
+  const tot30=days.reduce((a,d)=>a+per[d],0);
+  const m=thisMonth();
+  const issM=issAll.filter(i=>String(i.date).startsWith(m)),recM=scoped(S.receipts).filter(r=>String(r.date).startsWith(m));
+  const lI=issM.reduce((a,i)=>a+num(i.liters),0),lR=recM.reduce((a,r)=>a+num(r.liters),0);
+  const recCost=recM.reduce((a,r)=>a+num(r.liters)*num(r.price),0);
+  const unitsM=new Set(issM.map(i=>i.unitId)).size;
+  $("#dash-lead").textContent=(S.plant?plantName(S.plant):"Both plants")+": stock on hand and movement for "+monthLabel(m)+". Units consuming above their limit are flagged.";
+  $("#kpis").innerHTML=[
+    ["Issued this month",fmt(lI),"L",issM.length+" slip"+(issM.length===1?"":"s")+" · "+unitsM+" unit"+(unitsM===1?"":"s")],
+    ["Received this month",fmt(lR),"L",recM.length+" deliver"+(recM.length===1?"y":"ies")],
+    ["Fuel cost issued",peso(sumCost(issM)),"",lI?"FIFO · "+peso(sumCost(issM)/lI)+" / L avg":"FIFO costing"],
+    ["Stock on hand",fmt(st),"L","worth "+peso(stockValue(S.plant))+" at FIFO"],
+  ].map(k=>`<div class="kpi"><div class="lbl">${esc(k[0])}</div><div class="val">${esc(k[1])}${k[2]?`<small>${esc(k[2])}</small>`:""}</div><div class="sub">${esc(k[3])}</div></div>`).join("");
+  const W=640,H=180,pl=40,pr=8,pt=10,pb=24,cw=W-pl-pr,ch=H-pt-pb;
+  const mx=Math.max(...days.map(d=>per[d]));const top=mx>0?niceMax(mx):100;const bw=cw/30;
+  let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Daily liters issued over the last 30 days, total ${fmt(tot30)} liters">`;
+  for(let g=0;g<=4;g++){const y=pt+ch-ch*g/4;svg+=`<line class="gl" x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}"/><text x="${pl-6}" y="${y+3}" text-anchor="end">${fmt(top*g/4)}</text>`}
+  days.forEach((d,k)=>{const v=per[d];const h=v/top*ch;const x=pl+k*bw+bw*.15;
+    if(v>0)svg+=`<rect class="bar" x="${x.toFixed(1)}" y="${(pt+ch-h).toFixed(1)}" width="${(bw*.7).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5"><title>${esc(d)}: ${esc(fmt(v,1))} L</title></rect>`;
+    if(k%5===4||k===0)svg+=`<text x="${(pl+k*bw+bw/2).toFixed(1)}" y="${H-8}" text-anchor="middle">${esc(d.slice(5).replace("-","/"))}</text>`;
+  });
+  svg+="</svg>";
+  $("#chart30").innerHTML=(tot30?"":'<p class="meta" style="margin:0 0 6px">No issuances in the last 30 days yet.</p>')+svg;
+  const sum=monthSummary(m);
+  $("#top-title").textContent="Top consumers, "+monthLabel(m);
+  $("#top-tbl").innerHTML=sum.length?`<thead><tr><th>Unit</th><th class="n">Liters</th><th class="n">Rate</th><th class="n">Limit</th><th>Status</th></tr></thead><tbody>${
+    sum.slice(0,8).map(r=>`<tr><td><span class="code">${esc(codeOf(r.u,r.code))}</span> <span class="muted">${esc(r.u?r.u.type:"")}</span></td><td class="n">${fmt(r.liters,1)}</td><td class="n">${r.rate!=null?rateFmt(r.rate,r.u):"—"}</td><td class="n">${esc(limitText(r.u))}</td><td><span class="pill ${r.flag}">${FLAG[r.flag]}</span></td></tr>`).join("")}</tbody>`
+    :`<tbody><tr><td class="empty"><b>No fuel issued this month</b>Record a slip under Issue Fuel to see units ranked here.</td></tr></tbody>`;
+  const al=[];
+  if(!S.units.length&&S.loaded.units)al.push(["warn","Register your units under Units & Setup before issuing fuel."]);
+  shown.forEach(p=>{const t=tankState(p.id);
+    if(!t.cap)al.push(["warn",`${p.name}: set the tank capacity and reorder level under Units & Setup.`]);
+    if(t.st<0)al.push(["bad",`${p.name}: computed stock is negative. A delivery may be missing, or the opening stock is not set.`]);
+    else if(t.reo&&t.st<=t.reo)al.push(["bad",`${p.name}: stock is ${fmt(t.st)} L, at or below the ${fmt(t.reo)} L reorder level. Schedule a delivery.`]);});
+  sum.filter(r=>r.flag==="bad").forEach(r=>al.push(["bad",`${r.u.code}: ${rateFmt(r.rate,r.u)}, above the ${limitText(r.u)} limit. Check for leaks, idling or pilferage.`]));
+  sum.filter(r=>r.flag==="warn"&&r.var!=null).forEach(r=>al.push(["warn",`${r.u.code}: ${Math.round(r.var*100)}% above standard this month.`]));
+  const noMeter=issM.filter(i=>{const x=slipRuns(i);return !x.km&&!x.hrs}).length;
+  const pend=scoped(S.adjReq).filter(r=>adjStatus(r)==="pending").length;
+  if(pend)al.push(["warn",`${pend} stock adjustment request${pend===1?"":"s"} waiting for approval.`]);
+  if(noMeter)al.push(["warn",`${noMeter} slip${noMeter===1?"":"s"} this month have no meter reading, so consumption cannot be checked.`]);
+  $("#alerts").innerHTML=al.length?al.map(a=>`<div class="alert"><span class="pill ${a[0]}">${a[0]==="bad"?"Action":"Check"}</span><span>${esc(a[1])}</span></div>`).join(""):'<div class="alert"><span class="pill ok">Clear</span><span>No stock or consumption issues right now.</span></div>';
+}
+function niceMax(v){const p=Math.pow(10,Math.floor(Math.log10(v)));const f=v/p;return(f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p}
+
+let listsSig="";
+function renderUnitLists(){
+  const sig=S.issuances.length+":"+S.units.length+":"+Object.keys(S.chunks).map(k=>(S.chunks[k].units||[]).length).join(",")+":"+S.units.map(u=>u.code+u.status).join("|").length;
+  if(sig!==listsSig){
+    listsSig=sig;
+    const act=S.units.filter(isActive).sort((a,b)=>String(a.code).localeCompare(String(b.code)));
+    $("#unit-list").innerHTML=act.map(u=>`<option value="${esc(u.code)}">${esc(u.name||"")}${u.site?" · "+esc(u.site):""}${u.status==="Defective"?" · DEFECTIVE":""}</option>`).join("");
+    const uniq=a=>[...new Set(a.map(v=>String(v||"").trim()).filter(Boolean))].sort();
+    $("#driver-list").innerHTML=uniq([...S.units.map(u=>u.operator),...S.issuances.map(i=>i.operator)]).map(v=>`<option value="${esc(v)}"></option>`).join("");
+    $("#equip-list").innerHTML=uniq([...S.units.map(u=>u.name),...S.issuances.map(i=>i.equipment)]).map(v=>`<option value="${esc(v)}"></option>`).join("");
+    $("#loc-list").innerHTML=uniq([...S.issuances.map(i=>i.location),...S.units.map(u=>u.site)]).map(v=>`<option value="${esc(v)}"></option>`).join("");
+    const sites=[...new Set([...S.units.map(u=>u.site),...S.issuances.map(i=>i.site)].filter(Boolean))].sort();
+    $("#site-list").innerHTML=sites.map(s=>`<option value="${esc(s)}"></option>`).join("");
+    const sups=[...new Set(S.receipts.map(r=>String(r.supplier||"").split(/\s+DR\b/i)[0].trim()).filter(Boolean))].map(v=>v+" DR#");
+    $("#supplier-list").innerHTML=sups.map(s=>`<option value="${esc(s)}"></option>`).join("");
+  }
+  updateIssueHint();
+}
+function updateIssueHint(){
+  const raw=$("#is-unit").value.trim(),u=unitByCode(raw);
+  const hint=$("#is-unit-hint");
+  if(!raw){hint.textContent=S.units.length?fmt(S.units.length)+" units registered. Type a code or vehicle name.":"";updatePreview();return}
+  if(!u){hint.textContent="No unit with this code or name. Check spelling or add it under Units & Setup.";updatePreview();return}
+  const lr=lastReadings(u.id);
+  hint.textContent=[u.code,u.type,u.tankCap?"Tank "+fmt(u.tankCap)+" L":"",lr.odo!=null?"Last odo "+fmt(lr.odo,1)+" km":"",lr.hr!=null?"Last hr "+fmt(lr.hr,1):"",(lr.odo==null&&lr.hr==null)?"No previous reading":"",u.status==="Defective"?"⚠ Marked DEFECTIVE":""].filter(Boolean).join(" · ");
+  updatePreview();
+}
+function formSlip(){return{liters:$("#is-liters").value,odoOpen:$("#is-odo-o").value,odoClose:$("#is-odo-c").value,hrOpen:$("#is-hr-o").value,hrClose:$("#is-hr-c").value,odoOpenFlag:$("#is-odo-of").checked,odoCloseFlag:$("#is-odo-cf").checked,hrOpenFlag:$("#is-hr-of").checked,hrCloseFlag:$("#is-hr-cf").checked}}
+function updatePreview(){
+  const f=formSlip(),u=unitByCode($("#is-unit").value),x=slipRuns(f);
+  const out=(id,v,unit)=>{const o=$(id);o.textContent=v!=null?fmt(v,1)+" "+unit:"auto";o.classList.toggle("has",v!=null)};
+  out("#is-km",x.km,"km");out("#is-hrs",x.hrs,"hrs");
+  const bits=[];
+  if(has(f.odoOpen)&&has(f.odoClose)&&num(f.odoClose)<num(f.odoOpen))bits.push(`<span class="pill bad">Odo closing is lower than opening</span>`);
+  if(has(f.hrOpen)&&has(f.hrClose)&&num(f.hrClose)<num(f.hrOpen))bits.push(`<span class="pill bad">Hr closing is lower than opening</span>`);
+  if(u){const lr=lastReadings(u.id);
+    if(has(f.odoOpen)&&lr.odo!=null&&Math.abs(num(f.odoOpen)-lr.odo)>0.05)bits.push(`<span class="pill warn">Odo opening differs from last recorded ${esc(fmt(lr.odo,1))}</span>`);
+    if(has(f.hrOpen)&&lr.hr!=null&&Math.abs(num(f.hrOpen)-lr.hr)>0.05)bits.push(`<span class="pill warn">Hr opening differs from last recorded ${esc(fmt(lr.hr,1))}</span>`);}
+  const pl=$("#is-plant").value;
+  if(pl&&num(f.liters)>0){const F=fifo().plants[pl];let need=num(f.liters),amt=0;for(const L of F.layers){if(need<=0)break;const t=Math.min(need,L.left);amt+=t*L.price;need-=t}if(need>0)amt+=need*F.nextPrice;
+    bits.push(`<span>FIFO cost <b>${esc(peso(amt))}</b> (${esc(peso(amt/num(f.liters)))} / L)</span>`);if(need>0)bits.push(`<span class="pill warn">Exceeds ${esc(plantName(pl))} stock</span>`);}
+  if(num(f.liters)>0&&(x.km||x.hrs)){const r=rateOf(f,u);
+    if(r.rKm!=null)bits.push(`<span>${esc(rateK(r.rKm,"km"))}</span>`);
+    if(r.rHr!=null)bits.push(`<span>${esc(rateK(r.rHr,"hr"))}</span>`);
+    if(r.kind&&r.flag!=="na")bits.push(`<span class="pill ${PILL[r.flag]}">${FLAG[r.flag]}</span>`);}
+  $("#is-preview").innerHTML=bits.join("");
+}
+
+function delBtns(kind,id){
+  if(!S.canWrite||!(may.del()||kind==="adjustments"))return"";
+  if(S.confirmDel===kind+":"+id)return `<span class="confirm">Delete? <button type="button" class="ghost danger" data-del="${kind}" data-id="${esc(id)}">Yes</button><button type="button" class="ghost" data-cancel>No</button></span>`;
+  return `<button type="button" class="ghost" data-ask="${kind}" data-id="${esc(id)}">Delete</button>`;
+}
+function filteredIssuances(){
+  const m=$("#il-month").value,q=$("#il-unit").value.trim().toUpperCase(),exact=unitByCode(q);
+  return scoped(S.issuances).filter(i=>(!m||String(i.date).startsWith(m))&&(!q||(exact?i.unitId===exact.id:String((unitById(i.unitId)||{}).code||i.unitCode||"").toUpperCase().includes(q))))
+    .sort((a,b)=>sortKey(b).localeCompare(sortKey(a)));
+}
+function filteredReceipts(){
+  const m=$("#rl-month").value;
+  return scoped(S.receipts).filter(r=>!m||String(r.date).startsWith(m)).sort((a,b)=>sortKey(b).localeCompare(sortKey(a)));
+}
+function renderLogs(){
+  const rates=computeRates();const list=filteredIssuances();const tl=list.reduce((a,i)=>a+num(i.liters),0);
+  const rd=(o,c,f1,f2)=>has(o)||has(c)?`${has(o)?esc(fmt(o,1)):"—"}${f1?" ⚠":""} → ${has(c)?esc(fmt(c,1)):"—"}${f2?" ⚠":""}`:"—";
+  $("#il-tbl").innerHTML=list.length?`<thead><tr><th>Date</th><th>Time</th><th>Plant</th><th>Issuance #</th><th>Req. slip #</th><th>Code</th><th>Equipment / plate</th><th class="n">Liters</th><th class="n">₱ / L</th><th class="n">Cost</th><th class="n">Odometer</th><th class="n">Km</th><th class="n">Hr meter</th><th class="n">Hrs</th><th class="n">L/km</th><th class="n">L/hr</th><th>Status</th><th>Driver / operator</th><th>Business unit / site</th><th>Project location</th><th>Notes</th><th>Encoded by</th><th></th></tr></thead><tbody>${
+    list.map(i=>{const u=unitById(i.unitId),r=rates[i.id]||{};return `<tr><td class="code">${esc(i.date)}</td><td class="code">${esc(i.time||"")}</td><td><span class="chip">${esc(i.plant||"—")}</span></td><td class="code">${esc(i.slipNo||"")}</td><td>${esc(i.reqNo||"")}</td><td class="code">${esc(codeOf(u,i.unitCode))}</td><td>${esc(i.equipment||(u?u.name:""))}</td><td class="n">${fmt(i.liters,2)}</td><td class="n">${costOf(i).perL?fmt(costOf(i).perL,2):"—"}${costOf(i).short?" ⚠":""}</td><td class="n">${peso(costOf(i).amount)}</td><td class="n">${rd(i.odoOpen,i.odoClose,i.odoOpenFlag,i.odoCloseFlag)}</td><td class="n">${r.km?fmt(r.km,1):"—"}</td><td class="n">${rd(i.hrOpen,i.hrClose,i.hrOpenFlag,i.hrCloseFlag)}</td><td class="n">${r.hrs?fmt(r.hrs,1):"—"}</td><td class="n">${r.rKm!=null?fmt(r.rKm,3):"—"}</td><td class="n">${r.rHr!=null?fmt(r.rHr,2):"—"}</td><td><span class="pill ${PILL[r.flag||"na"]}">${FLAG[r.flag||"na"]}</span></td><td>${esc(i.operator||"")}</td><td>${esc(i.site||"")}</td><td>${esc(i.location||"")}</td><td>${esc(i.remarks||"")}</td><td class="muted">${esc(i.encodedBy||nameOf(i.by))}</td><td>${delBtns("issuances",i.id)}</td></tr>`}).join("")
+  }</tbody><tfoot><tr><td colspan="7">${list.length} entr${list.length===1?"y":"ies"}</td><td class="n">${fmt(tl,2)}</td><td></td><td class="n">${peso(sumCost(list))}</td><td colspan="13"></td></tr></tfoot>`
+  :`<tbody><tr><td class="empty"><b>No entries for this filter</b>Saved consumption entries appear here with their L/km and L/hr.</td></tr></tbody>`;
+  const rl=filteredReceipts();
+  const rt=rl.reduce((a,r)=>a+num(r.liters),0),rv=rl.reduce((a,r)=>a+num(r.liters)*num(r.price),0);
+  $("#rl-tbl").innerHTML=rl.length?`<thead><tr><th>Date</th><th>Time</th><th>Plant</th><th>Supplier / DR no.</th><th class="n">Liters</th><th class="n">Price / L</th><th class="n">Amount</th><th>Encoded by</th><th></th></tr></thead><tbody>${
+    rl.map(r=>`<tr><td class="code">${esc(r.date)}</td><td class="code">${esc(r.time||"")}</td><td><span class="chip">${esc(r.plant||"—")}</span></td><td>${esc([r.supplier,r.drNo].filter(Boolean).join(" · "))}</td><td class="n">${fmt(r.liters,2)}</td><td class="n">${num(r.price)?peso(r.price):"—"}</td><td class="n">${num(r.price)?peso(num(r.liters)*num(r.price)):"—"}</td><td class="muted">${esc(r.encodedBy||nameOf(r.by))}</td><td>${delBtns("receipts",r.id)}</td></tr>`).join("")
+  }</tbody><tfoot><tr><td colspan="4">${rl.length} deliver${rl.length===1?"y":"ies"}</td><td class="n">${fmt(rt,2)}</td><td></td><td class="n">${rv?peso(rv):""}</td><td colspan="2"></td></tr></tfoot>`
+  :`<tbody><tr><td class="empty"><b>No deliveries for this month</b>Log a tanker delivery to add stock to the tank.</td></tr></tbody>`;
+}
+
+function filteredUnits(){
+  const q=$("#ut-q").value.trim().toUpperCase(),t=$("#ut-type").value,st=$("#ut-status").value;
+  return S.units.filter(u=>(!t||u.type===t)&&(!st||(u.status||"Active")===st)&&(!q||[u.code,u.name,u.plate,u.operator,u.site].join(" ").toUpperCase().includes(q)));
+}
+function renderUnits(){
+  const tsel=$("#ut-type");if(!tsel.options.length){tsel.innerHTML='<option value="">All types</option>'+TYPES.map(t=>`<option>${esc(t)}</option>`).join("")}
+  const list=filteredUnits(),shown=list.slice(0,S.unitLimit);
+  const sum={};monthSummary(thisMonth()).forEach(r=>sum[r.unitId]=r);
+  $("#ut-count").textContent=S.units.length?`Showing ${fmt(shown.length)} of ${fmt(list.length)} matching · ${fmt(S.units.length)} units in total`:"";
+  $("#ut-more").hidden=list.length<=shown.length;
+  $("#un-tbl").innerHTML=shown.length?`<thead><tr><th>Code</th><th>Equipment / plate</th><th>Type</th><th>Operator</th><th>Site / business unit</th><th class="n">Tank</th><th>Meter</th><th class="n">Limit</th><th class="n">This month</th><th>Status</th><th></th></tr></thead><tbody>${
+    shown.map(u=>{const s=u.status||"Active";return `<tr><td class="code">${esc(u.code)}</td><td>${esc(u.name||"")}</td><td>${esc(u.type)}</td><td>${esc(u.operator||"")}</td><td>${esc(u.site||"")}</td><td class="n">${u.tankCap?fmt(u.tankCap)+" L":"—"}</td><td>${u.meter==="hr"?"Hour meter":"Odometer"}</td><td class="n">${esc(limitText(u))}</td><td class="n">${sum[u.id]?fmt(sum[u.id].liters,1)+" L":"—"}</td><td><span class="pill ${s==="Active"?"ok":s==="Defective"?"bad":"na"}">${esc(s)}</span></td><td style="white-space:nowrap">${S.canWrite&&may.units()?`<button type="button" class="ghost" data-edit="${esc(u.id)}">Edit</button>`:""}${delBtns("units",u.id)}</td></tr>`}).join("")
+  }</tbody>`:`<tbody><tr><td class="empty">${S.units.length?"<b>No units match</b>Clear the search or filters.":"<b>No units registered</b>Add your trucks, heavy equipment and gensets with their standard fuel rate."}</td></tr></tbody>`;
+}
+
+function logRows(){
+  const f=$("#lg-from").value,t=$("#lg-to").value,site=$("#lg-site").value.trim().toUpperCase(),uq=$("#lg-unit").value.trim(),st=$("#lg-status").value,q=$("#lg-q").value.trim().toUpperCase();
+  const ex=unitByCode(uq),rates=computeRates();
+  return scoped(S.issuances).filter(i=>(!f||i.date>=f)&&(!t||i.date<=t)&&(!site||String(i.site||"").toUpperCase().includes(site))
+    &&(!uq||(ex?i.unitId===ex.id:String(i.unitCode||"").toUpperCase().includes(uq.toUpperCase())))
+    &&(!q||[i.slipNo,i.reqNo,i.operator,i.location,i.equipment,i.remarks].join(" ").toUpperCase().includes(q)))
+    .map(i=>{const u=unitById(i.unitId),r=rates[i.id]||{};
+      const sKm=r.rKm==null?"na":r.kmFlag?"flag":flagFor(u,r.rKm,"km"),sHr=r.rHr==null?"na":r.hrFlag?"flag":flagFor(u,r.rHr,"hr");
+      return{i,u,r,sKm,sHr,status:r.flag||"na"}})
+    .filter(x=>!st||x.status===st)
+    .sort((a,b)=>sortKey(a.i).localeCompare(sortKey(b.i)));
+}
+function logTotals(rows){
+  let L=0,km=0,kmL=0,hrs=0,hrL=0;
+  rows.forEach(x=>{const l=num(x.i.liters);L+=l;if(x.r.km&&!x.r.kmFlag){km+=x.r.km;kmL+=l}if(x.r.hrs&&!x.r.hrFlag){hrs+=x.r.hrs;hrL+=l}});
+  return{cost:rows.reduce((a,x)=>a+costOf(x.i).amount,0),n:rows.length,L,km,hrs,lkm:km?kmL/km:null,lhr:hrs?hrL/hrs:null,over:rows.filter(x=>x.status==="bad").length,flag:rows.filter(x=>x.status==="flag").length};
+}
+const GROUPS={site:x=>x.i.site||"(no site)",plant:x=>x.i.plant?x.i.plant+" · "+plantName(x.i.plant):"(no plant)",unit:x=>codeOf(x.u,x.i.unitCode),date:x=>x.i.date,operator:x=>x.i.operator||"(no driver)"};
+function renderLogReport(){
+  const rows=logRows(),T=logTotals(rows),g=$("#lg-group").value;
+  const f=$("#lg-from").value,t=$("#lg-to").value;
+  $("#lg-lead").textContent=(S.plant?plantName(S.plant):"Both plants")+" · "+(f||"start")+" to "+(t||"today")+". Rates exclude flagged readings.";
+  $("#lg-kpis").innerHTML=[["Entries",fmt(T.n),""],["Liters issued",fmt(T.L,2),"L"],["Fuel cost (FIFO)",peso(T.cost),""],["Distance run",fmt(T.km,1),"km"],["Hours run",fmt(T.hrs,1),"hrs"],["Avg L/km",T.lkm!=null?fmt(T.lkm,3):"—",""],["Avg L/hr",T.lhr!=null?fmt(T.lhr,2):"—",""],["Over / flagged",fmt(T.over)+" / "+fmt(T.flag),""]]
+    .map(k=>`<div class="kpi"><div class="lbl">${esc(k[0])}</div><div class="val">${esc(k[1])}${k[2]?`<small>${esc(k[2])}</small>`:""}</div></div>`).join("");
+  if(!rows.length){$("#lg-tbl").innerHTML=`<tbody><tr><td class="empty"><b>No consumption entries match</b>Widen the date range or clear the filters.</td></tr></tbody>`;return}
+  const C=19;
+  const head=`<thead><tr><th>Date</th><th>Time</th><th>Plant</th><th>Code</th><th>Equipment / plate</th><th>Business unit / site</th><th>Project location</th><th>Issuance #</th><th class="n">Liters</th><th class="n">₱ / L</th><th class="n">Cost</th><th class="n">Odo prev</th><th class="n">Odo present</th><th class="n">Hr prev</th><th class="n">Hr present</th><th class="n">Km</th><th class="n">Hrs</th><th class="n">L/km</th><th class="n">L/hr</th><th>Remarks odo</th><th>Remarks hr</th><th>Driver / operator</th></tr></thead>`;
+  const v=(x,d,fl)=>has(x)?esc(fmt(x,d))+(fl?" ⚠":""):"";
+  const pill=s=>s==="na"?"":`<span class="pill ${PILL[s]}">${FLAG[s].toUpperCase()}</span>`;
+  const line=x=>{const i=x.i,r=x.r;return `<tr><td class="code">${esc(i.date)}</td><td class="code">${esc(i.time||"")}</td><td><span class="chip">${esc(i.plant||"—")}</span></td><td class="code">${esc(codeOf(x.u,i.unitCode))}</td><td>${esc(i.equipment||(x.u?x.u.name:""))}</td><td>${esc(i.site||"")}</td><td>${esc(i.location||"")}</td><td class="code">${esc(i.slipNo||"")}</td><td class="n">${fmt(i.liters,2)}</td><td class="n">${costOf(i).perL?fmt(costOf(i).perL,2):"—"}</td><td class="n">${peso(costOf(i).amount)}</td><td class="n">${v(i.odoOpen,0,i.odoOpenFlag)}</td><td class="n">${v(i.odoClose,0,i.odoCloseFlag)}</td><td class="n">${v(i.hrOpen,1,i.hrOpenFlag)}</td><td class="n">${v(i.hrClose,1,i.hrCloseFlag)}</td><td class="n">${r.km?fmt(r.km,1):""}</td><td class="n">${r.hrs?fmt(r.hrs,1):""}</td><td class="n">${r.rKm!=null?fmt(r.rKm,3):""}</td><td class="n">${r.rHr!=null?fmt(r.rHr,2):""}</td><td>${pill(x.sKm)}</td><td>${pill(x.sHr)}</td><td>${esc(i.operator||"")}</td></tr>`};
+  const sub=(label,R)=>{const t=logTotals(R);return `<tr class="grp-t"><td colspan="8">${esc(label)} · ${t.n} entr${t.n===1?"y":"ies"}</td><td class="n">${fmt(t.L,2)}</td><td></td><td class="n">${peso(t.cost)}</td><td colspan="4"></td><td class="n">${fmt(t.km,1)}</td><td class="n">${fmt(t.hrs,1)}</td><td class="n">${t.lkm!=null?fmt(t.lkm,3):"—"}</td><td class="n">${t.lhr!=null?fmt(t.lhr,2):"—"}</td><td colspan="3">${t.over?t.over+" over":""}${t.over&&t.flag?" · ":""}${t.flag?t.flag+" flagged":""}</td></tr>`};
+  let body="";
+  if(g){const map=new Map();rows.forEach(x=>{const k=GROUPS[g](x);if(!map.has(k))map.set(k,[]);map.get(k).push(x)});
+    [...map.keys()].sort().forEach(k=>{const R=map.get(k);body+=`<tr class="grp-h"><td colspan="${C+1}">${esc(k)}</td></tr>`+R.map(line).join("")+sub("Subtotal",R)});}
+  else body=rows.map(line).join("");
+  $("#lg-tbl").innerHTML=head+`<tbody>${body}</tbody><tfoot>${sub("Grand total",rows).replace('class="grp-t"','')}</tfoot>`;
+}
+function logDefaults(){const d=nowDate();$("#lg-from").value=d.slice(0,8)+"01";$("#lg-to").value=d;["#lg-site","#lg-unit","#lg-q"].forEach(id=>$(id).value="");$("#lg-status").value="";$("#lg-group").value=""}
+function renderStock(){
+  const plants=S.plant?PLANTS.filter(x=>x.id===S.plant):PLANTS;
+  const m=$("#dl-month").value||thisMonth();
+  $("#dp-cards").innerHTML=plants.map(p=>{
+    const recs=S.dipsticks.filter(d=>d.plant===p.id).sort((a,b)=>evKey(b,2).localeCompare(evKey(a,2)));
+    const last=recs[0];let mid="";
+    if(last){const R=dayRecon(p.id,last.date,last);
+      mid=`<div class="meta">Last reading ${esc(last.date)}</div>
+      <div class="nums"><div><div class="l">Dip usage</div><div class="v">${R.use!=null?esc(fmt(R.use,0)):"—"}</div></div><div><div class="l">Meters</div><div class="v">${R.mtr!=null?esc(fmt(R.mtr,0)):"—"}</div></div><div><div class="l">System</div><div class="v">${esc(fmt(R.sys,0))}</div></div></div>
+      <span class="pill ${R.st}">${esc(R.label)}${R.d1!=null?" · "+esc(sgn(R.d1)):""}</span>`;}
+    else mid='<p class="meta">No dip reading yet. Record one below.</p>';
+    const mon=recs.filter(d=>String(d.date).startsWith(m)).map(d=>dayRecon(p.id,d.date,d));
+    const tot=mon.reduce((a,R)=>a+(R.d1||0),0),flags=mon.filter(R=>R.st==="bad"||R.st==="warn").length;
+    return `<div class="panel dpcard"><h4>${esc(p.name)} <span class="chip">${esc(p.id)}</span></h4>${mid}<p class="meta" style="margin:10px 0 0">${esc(monthLabel(m))}: ${mon.length} day${mon.length===1?"":"s"} recorded · net dip vs system <b>${esc(sgn(tot))}</b> · ${flags} flagged · book stock now <b>${esc(fmt(stock(p.id),2))} L</b></p></div>`;
+  }).join("");
+  const list=scoped(S.dipsticks).filter(d=>String(d.date).startsWith(m)).sort((a,b)=>evKey(b,2).localeCompare(evKey(a,2)));
+  const mr=(o,c,f1,f2)=>has(o)||has(c)?`${has(o)?fmt(o,0):"—"}${f1?" ⚠":""} → ${has(c)?fmt(c,0):"—"}${f2?" ⚠":""}`:"—";
+  $("#dl-tbl").innerHTML=list.length?`<thead><tr><th>Date</th><th>Plant</th><th class="n">Opening dip</th><th class="n">Deliveries</th><th class="n">Closing dip</th><th class="n">Dip usage</th><th class="n">Meter 1</th><th class="n">Meter 2</th><th class="n">Meters total</th><th class="n">System</th><th class="n">Dip vs system</th><th class="n">Meter vs system</th><th>Status</th><th class="n">Book closing</th><th class="n">Closing vs book</th><th>Notes</th><th>Encoded by</th><th></th></tr></thead><tbody>${
+    list.map(d=>{const R=dayRecon(d.plant,d.date,d),book=bookAt(d.plant,evKey(d,2)),bv=num(d.closeDip)-book;
+      return `<tr><td class="code">${esc(d.date)}</td><td><span class="chip">${esc(d.plant)}</span></td><td class="n">${fmt(d.openDip,2)}</td><td class="n">${R.rcv?fmt(R.rcv,2):"—"}</td><td class="n">${fmt(d.closeDip,2)}</td><td class="n">${R.use!=null?fmt(R.use,2):"—"}</td><td class="n">${mr(d.om1,d.cm1,d.om1f,d.cm1f)}</td><td class="n">${mr(d.om2,d.cm2,d.om2f,d.cm2f)}</td><td class="n">${R.mtr!=null?fmt(R.mtr,2):"—"}</td><td class="n">${fmt(R.sys,2)}</td><td class="n">${R.d1!=null?esc(sgn(R.d1)):"—"}</td><td class="n">${R.d2!=null?esc(sgn(R.d2)):"—"}</td><td><span class="pill ${R.st}">${esc(R.label)}</span>${(()=>{const q=S.adjReq.find(r=>r.dipRef===d.id);return q?` <span class="pill ${{pending:"warn",approved:"ok",rejected:"na"}[adjStatus(q)]}">${esc(q.refNo)} ${esc(adjStatus(q))}</span>`:""})()}</td><td class="n">${fmt(book,2)}</td><td class="n">${esc(sgn(bv))}${d.adjusted?" · adjusted":""}</td><td>${esc(d.notes||"")}</td><td class="muted">${esc(d.encodedBy||nameOf(d.by))}</td><td>${delBtns("dipsticks",d.id)}</td></tr>`}).join("")}</tbody>`
+    :`<tbody><tr><td class="empty"><b>No dip readings for ${esc(monthLabel(m))}</b>Each daily reading reconciles the tank dip, pump meters and encoded issuances.</td></tr></tbody>`;
+  dipPreview();
+}
+function dipForm(){const v=id=>$(id).value;return{openDip:v("#dp-od"),closeDip:v("#dp-cd"),om1:v("#dp-om1"),cm1:v("#dp-cm1"),om2:v("#dp-om2"),cm2:v("#dp-cm2"),om1f:$("#dp-om1f").checked,cm1f:$("#dp-cm1f").checked,om2f:$("#dp-om2f").checked,cm2f:$("#dp-cm2f").checked}}
+function dipPreview(){
+  const p=$("#dp-plant").value,date=$("#dp-date").value||nowDate();
+  const set=(id,t)=>{const o=$(id);o.textContent=t==null?"auto":t;o.classList.toggle("has",t!=null)};
+  if(!p){["#dp-rcv","#dp-use","#dp-mtr","#dp-sys","#dp-d1","#dp-d2"].forEach(id=>set(id,null));return}
+  const R=dayRecon(p,date,dipForm());
+  set("#dp-rcv",fmt(R.rcv,2)+" L");set("#dp-sys",fmt(R.sys,2)+" L");
+  set("#dp-use",R.use!=null?fmt(R.use,2)+" L":null);set("#dp-mtr",R.mtr!=null?fmt(R.mtr,2)+" L"+(R.mflag?" ⚠":""):null);
+  set("#dp-d1",R.d1!=null?sgn(R.d1)+" · "+R.label:null);set("#dp-d2",R.d2!=null?sgn(R.d2):null);
+}
+function prefillDip(){
+  const p=$("#dp-plant").value;if(!p)return;const date=$("#dp-date").value||nowDate();
+  const prev=S.dipsticks.filter(d=>d.plant===p&&d.date<date).sort((a,b)=>evKey(b,2).localeCompare(evKey(a,2)))[0];
+  if(!prev)return;
+  [["#dp-od","closeDip"],["#dp-om1","cm1"],["#dp-om2","cm2"]].forEach(([id,k])=>{if(!$(id).value&&has(prev[k]))$(id).value=prev[k]});
+}
+function isOwnReq(r){return !!(S.uid&&r.by===S.uid)}
+function adjSigned(r){return (r.direction==="increase"?1:-1)*num(r.liters)}
+function fifoValue(p,liters){ // estimate before approval
+  const F=fifo().plants[p];if(!F)return 0;
+  if(liters>=0)return liters*F.nextPrice;
+  let need=-liters,amt=0;for(const L of F.layers){if(need<=0)break;const t=Math.min(need,L.left);amt+=t*L.price;need-=t}if(need>0)amt+=need*F.nextPrice;return -amt;
+}
+function renderAdjust(){
+  const all=scoped(S.adjReq),m=$("#al-month").value,stf=$("#al-status").value;
+  const pend=all.filter(r=>adjStatus(r)==="pending");
+  const badge=$("#adj-badge"),pa=S.adjReq.filter(r=>adjStatus(r)==="pending").length;badge.hidden=!pa;badge.textContent=pa;
+  const mon=all.filter(r=>String(r.date).startsWith(m||thisMonth())&&adjStatus(r)==="approved");
+  const net=mon.reduce((a,r)=>a+num(S.approvals[r.id].liters),0),val=mon.reduce((a,r)=>{const c=fifo().cost[r.id];return a+(c?(num(S.approvals[r.id].liters)>0?c.amount:-c.amount):0)},0);
+  $("#adj-kpis").innerHTML=[["Pending approval",fmt(pend.length),"",pend.length?"oldest "+pend.map(r=>r.date).sort()[0]:"none waiting"],["Approved this month",fmt(mon.length),"",monthLabel(m||thisMonth())],["Net liters approved",(net>0?"+":"")+fmt(net,2),"L","applied to book stock"],["Net value (FIFO)",(val<0?"−":"")+peso(Math.abs(val)),"",val<0?"loss":val>0?"gain":"—"]]
+    .map(k=>`<div class="kpi"><div class="lbl">${esc(k[0])}</div><div class="val">${esc(k[1])}${k[2]?`<small>${esc(k[2])}</small>`:""}</div><div class="sub">${esc(k[3])}</div></div>`).join("");
+  const list=all.filter(r=>(!m||String(r.date).startsWith(m)||adjStatus(r)==="pending")&&(!stf||adjStatus(r)===stf)).sort((a,b)=>{const pa=adjStatus(a)==="pending"?0:1,pb=adjStatus(b)==="pending"?0:1;return pa-pb||String(b.createdAt).localeCompare(String(a.createdAt))});
+  const SP={pending:"warn",approved:"ok",rejected:"na"};
+  $("#al-tbl").innerHTML=list.length?`<thead><tr><th>Ref #</th><th>Date</th><th>Plant</th><th class="n">Liters</th><th>Reason</th><th>Dip reference</th><th>Justification</th><th>Requested by</th><th>Status</th><th>Decision</th><th class="n">Value (FIFO)</th><th></th></tr></thead><tbody>${
+    list.map(r=>{const st=adjStatus(r),a=S.approvals[r.id],c=fifo().cost[r.id];
+      const own=isOwnReq(r);
+      let act="";
+      if(st==="pending"){
+        if(S.deciding===r.id)act=`<div class="decide"><input id="dc-note" placeholder="Comment (required to reject)" aria-label="Decision comment"><div class="actions"><button type="button" class="primary" data-approve="${esc(r.id)}">Approve</button><button type="button" class="danger" data-reject="${esc(r.id)}">Reject</button><button type="button" class="ghost" data-undecide>Cancel</button></div></div>`;
+        else if(may.approve(r.plant)&&!own)act=`<button type="button" data-decide="${esc(r.id)}">Review</button>`;
+        else if(may.approve(r.plant)&&own)act=`<span class="meta">Needs another approver</span>`;
+        if((own||may.del())&&S.deciding!==r.id)act+=delBtns("adjustments",r.id);
+      }
+      const liters=st==="approved"?num(a.liters):adjSigned(r);
+      return `<tr><td class="code">${esc(r.refNo||"")}</td><td class="code">${esc(r.date)}</td><td><span class="chip">${esc(r.plant)}</span></td><td class="n">${liters>0?"+":""}${fmt(liters,2)}</td><td>${esc(r.reason||"")}</td><td>${esc(r.dipLabel||"—")}</td><td>${esc(r.remarks||"")}</td><td>${esc(r.requestedBy||nameOf(r.by))}<div class="meta">${esc(String(r.createdAt||"").slice(0,10))}</div></td><td><span class="pill ${SP[st]}">${st[0].toUpperCase()+st.slice(1)}</span></td><td>${a?esc(a.decidedByName||"")+`<div class="meta">${esc(String(a.decidedAt||"").slice(0,16).replace("T"," "))}${a.comment?" · "+esc(a.comment):""}</div>`:"—"}</td><td class="n">${st==="approved"&&c?(liters<0?"−":"")+peso(c.amount):st==="pending"?'<span class="muted">≈ '+esc(peso(Math.abs(fifoValue(r.plant,liters))))+"</span>":"—"}</td><td>${act}</td></tr>`}).join("")}</tbody>`
+    :`<tbody><tr><td class="empty"><b>No adjustment requests</b>File one from a flagged dip reading or any confirmed variance.</td></tr></tbody>`;
+  // dip reference options
+  const pl=$("#aj-plant").value,sel=$("#aj-dip"),cur=sel.value;
+  const dips=S.dipsticks.filter(d=>d.plant===pl).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,60);
+  sel.innerHTML='<option value="">None</option>'+dips.map(d=>{const R=dayRecon(d.plant,d.date,d),used=S.adjReq.some(q=>q.dipRef===d.id&&adjStatus(q)!=="rejected");return `<option value="${esc(d.id)}"${used?" disabled":""}>${esc(d.date)} · ${esc(R.label)}${R.d1!=null?" "+esc(sgn(R.d1)):""}${used?" (already filed)":""}</option>`}).join("");
+  if([...sel.options].some(o=>o.value===cur&&!o.disabled))sel.value=cur;
+  adjPreview();
+}
+function adjPreview(){
+  const p=$("#aj-plant").value,L=num($("#aj-liters").value),sg=$("#aj-dir").value==="increase"?1:-1;
+  const bo=$("#aj-book"),vo=$("#aj-val");
+  if(!p){bo.textContent=vo.textContent="auto";bo.classList.remove("has");vo.classList.remove("has");return}
+  const before=stock(p);bo.textContent=fmt(before,2)+" → "+(L>0?fmt(before+sg*L,2):"…")+" L";bo.classList.add("has");
+  if(L>0){const v=fifoValue(p,sg*L);vo.textContent=(v<0?"−":"+")+peso(Math.abs(v));vo.classList.add("has")}else{vo.textContent="auto";vo.classList.remove("has")}
+}
+const GROUPS_Q=[["Inventory management",a=>a.role==="head"||a.role==="auditor"],["Batching Plant · RMC",a=>(a.role==="controller"||a.role==="staff")&&a.plant==="RMC"],["Raw Materials Plant · RMP",a=>(a.role==="controller"||a.role==="staff")&&a.plant==="RMP"]];
+const roleOrder={head:0,controller:1,auditor:2,staff:3};
+const sortAcct=(a,b)=>(roleOrder[a.role]-roleOrder[b.role])||String(a.name).localeCompare(String(b.name));
+function acctList(){return Object.entries(S.users).map(([uid,a])=>({uid,...a})).sort(sortAcct)}
+function renderQuick(){
+  const box=$("#li-quick"),show=!!(S.be&&S.be.flags.SHOW_QUICK_SELECT)&&S.loginMode==="signin";
+  box.hidden=!show;$("#li-div").hidden=!show;if(!show)return;
+  const list=(S.directory||[]).filter(a=>a.active!==false).slice().sort(sortAcct);
+  if(!list.length){box.innerHTML='<p class="meta" style="text-align:center">Type your username to sign in.</p>';return}
+  const cur=$("#li-user").value.trim().toLowerCase();
+  box.innerHTML=GROUPS_Q.map(([t,f])=>{const L=list.filter(f);if(!L.length)return"";return `<div class="qgrp"><h5>${esc(t)}</h5><div class="qgrid">${L.map(a=>`<button type="button" class="qcard${a.username===cur?" sel":""}" data-quick="${esc(a.username)}"><span class="av" style="background:${avColor(a.username)}">${esc(initials(a.name))}</span><div><b>${esc(a.name)}</b><small>${esc(a.title||ROLES[a.role]||"")}</small></div></button>`).join("")}</div></div>`}).join("");
+}
+function loginState(){const u=$("#li-user").value.trim().toLowerCase();document.querySelectorAll(".qcard").forEach(c=>c.classList.toggle("sel",c.dataset.quick===u))}
+function setLoginMode(mode,forced){
+  S.loginMode=mode;S.forcedChange=!!forced;const ch=mode==="change";
+  $("#li-new").hidden=!ch;$("#li-user").readOnly=ch;
+  $("#li-pw-lbl").textContent=ch?(forced?"Temporary password":"Current password"):"Password";
+  $("#li-pw").autocomplete=ch?"current-password":"current-password";
+  $("#li-btn").textContent=ch?"Change password":"Sign in";
+  $("#li-new-note").innerHTML=ch?(forced?`Welcome, <b>${esc(S.acct?S.acct.name:"")}</b>. Replace your temporary password before you continue. Use at least 8 characters.`:"Enter your current password, then your new password (at least 8 characters)."):"";
+  $("#li-cancel").hidden=!(ch&&!forced);$("#li-out").hidden=!(ch&&forced);
+  ["#li-pw","#li-pwn","#li-pw2"].forEach(id=>$(id).value="");msg("#li-msg","");
+  if(ch&&S.acct)$("#li-user").value=S.acct.username||"";
+  renderQuick();
+}
+function showLogin(){$("#login").hidden=false;$("#app").inert=true}
+function hideLogin(){$("#login").hidden=true;$("#app").inert=false}
+const AUTHMSG={"auth/invalid-credential":"Incorrect username or password.","auth/wrong-password":"Incorrect username or password.","auth/user-not-found":"Incorrect username or password.","auth/invalid-email":"That username is not valid.","auth/too-many-requests":"Too many attempts. Wait a few minutes, then try again.","auth/network-request-failed":"No connection. Check the network and try again.","auth/weak-password":"Choose a stronger password (at least 8 characters).","auth/user-disabled":"This account is disabled. Contact the Inventory Management Head.","auth/requires-recent-login":"Sign out and sign in again, then change your password.","auth/email-already-in-use":"That username already has a sign-in."};
+const authErr=e=>AUTHMSG[e&&e.code]||("Something went wrong"+(e&&e.code?" ("+e.code+")":"")+". Try again.");
+async function doLogin(){
+  const m=(t,k)=>msg("#li-msg",t,k);
+  if(!S.be||!S.be.configured)return m("Firebase is not set up yet. Fill in public/js/config.js.","err");
+  if(S.loginMode==="change")return doChange();
+  const u=$("#li-user").value.trim().toLowerCase(),pw=$("#li-pw").value;
+  if(!u)return m("Enter your username.","err");
+  if(!pw)return m("Enter your password.","err");
+  $("#li-btn").disabled=true;m("Signing in…");
+  try{await S.be.signIn(u,pw);$("#li-pw").value=""}catch(e){m(authErr(e),"err")}finally{$("#li-btn").disabled=false}
+}
+async function doChange(){
+  const m=(t,k)=>msg("#li-msg",t,k),cur=$("#li-pw").value,nw=$("#li-pwn").value;
+  if(!cur)return m(S.forcedChange?"Enter your temporary password.":"Enter your current password.","err");
+  if(nw.length<8)return m("New password needs at least 8 characters.","err");
+  if(nw!==$("#li-pw2").value)return m("The new passwords do not match.","err");
+  if(nw===cur)return m("Choose a password different from the current one.","err");
+  $("#li-btn").disabled=true;m("Saving…");
+  try{
+    await S.be.changePassword(cur,nw);
+    if(S.acct&&S.acct.mustChangePassword)await S.db.doc("users/"+S.uid).update({mustChangePassword:false,passwordChangedAt:new Date().toISOString()});
+    const forced=S.forcedChange;setLoginMode("signin");
+    if(!forced){hideLogin();setStatus("Password changed.");setTimeout(()=>setStatus(""),4000)}
+  }catch(e){m(authErr(e),"err")}finally{$("#li-btn").disabled=false}
+}
+function fillBy(){["#is-by","#dp-by","#aj-by"].forEach(id=>{$(id).value=S.acct?S.acct.name:""})}
+function enterApp(){
+  const a=S.acct;hideLogin();
+  $("#who").hidden=false;$("#who-av").textContent=initials(a.name);$("#who-av").style.background=avColor(a.username||S.uid);
+  $("#who-name").textContent=a.name;$("#who-role").textContent=(a.title||ROLES[a.role]||"")+(plantLock()?" · "+a.plant:"");
+  if(plantLock())S.plant=plantLock();
+  S.canWrite=true;S.canAdmin=role()==="head"||role()==="controller";
+  ["#is-date","#rc-date","#dp-date","#aj-date"].forEach(id=>{if(!$(id).value)$(id).value=nowDate()});["#is-time","#rc-time"].forEach(id=>{if(!$(id).value)$(id).value=nowTime()});
+  fillBy();applyPlant();startData();applyPermissions();renderAll();
+}
+function watchProfile(uid){
+  if(S.profUnsub)S.profUnsub();
+  S.profUnsub=S.db.doc("users/"+uid).onSnapshot(s=>{
+    const a=s.exists?s.data():null;
+    if(!a||a.active===false){S.acct=null;stopData();showLogin();setLoginMode("signin");msg("#li-msg",a?"This account is disabled. Contact the Inventory Management Head.":"This sign-in has no account profile. Contact the Inventory Management Head.","err");S.be.signOut();return}
+    const before=S.acct;S.acct={uid,...a};S.myName=a.name;
+    if(a.mustChangePassword){showLogin();if(S.loginMode!=="change")setLoginMode("change",true);return}
+    if(!before||before.mustChangePassword||$("#login").hidden===false&&S.loginMode!=="change"){enterApp();return}
+    if(before.role!==a.role||before.plant!==a.plant){enterApp()}
+  },e=>{msg("#li-msg","Could not load your account ("+(e&&e.code||"error")+").","err")});
+}
+function startData(){
+  if(S.subs)return;const db=S.db;S.subs=[];
+  const timer=setTimeout(()=>{if(!Object.values(S.loaded).every(Boolean))setStatus("Records can't be reached yet. They will appear once the connection returns.")},10000);
+  const done=k=>{S.loaded[k]=true;if(Object.values(S.loaded).every(Boolean)){clearTimeout(timer);setStatus("")}};
+  const onErr=e=>{clearTimeout(timer);setStatus(e&&e.code==="permission-denied"?"Your account cannot read some records. Contact the Inventory Management Head.":"Lost the connection to the records. Reload the page to reconnect.")};
+  const coll=(name,fn,key)=>S.subs.push(db.collection(name).onSnapshot(s=>{fn(s);if(!s.metadata.fromCache)done(key);queueRender()},onErr));
+  coll("users",s=>{const o={};s.docs.forEach(d=>{o[d.id]=d.data()});S.users=o},"users");
+  coll("unitbook",s=>{S.chunks={};s.docs.forEach(d=>{S.chunks[d.id]=d.data()});rebuildUnits()},"units");
+  coll("receipts",s=>{S.receipts=s.docs.map(d=>({id:d.id,...d.data()}))},"receipts");
+  coll("adjustments",s=>{S.adjReq=s.docs.map(d=>({id:d.id,...d.data()}))},"adj");
+  coll("approvals",s=>{const o={};s.docs.forEach(d=>{o[d.id]=d.data()});S.approvals=o},"appr");
+  coll("dipsticks",s=>{S.dipsticks=s.docs.map(d=>({id:d.id,...d.data()}))},"dipsticks");
+  coll("issuances",s=>{S.issuances=s.docs.map(d=>({id:d.id,...d.data()}))},"issuances");
+  S.subs.push(db.doc("config/main").onSnapshot(s=>{S.cfg=s.exists?{...s.data()}:{};if(!s.metadata.fromCache)done("cfg");queueRender()},onErr));
+}
+function stopData(){
+  (S.subs||[]).forEach(u=>{try{u()}catch(e){}});S.subs=null;
+  S.users={};S.chunks={};S.units=[];S.unitMap={};S.codeMap={};S.receipts=[];S.issuances=[];S.dipsticks=[];S.adjReq=[];S.approvals={};S.cfg={};
+  Object.keys(S.loaded).forEach(k=>S.loaded[k]=false);fifoCache=null;
+}
+function signOut(){if(S.be&&S.be.configured)S.be.signOut()}
+function onSignedOut(){
+  if(S.profUnsub){S.profUnsub();S.profUnsub=null}
+  S.acct=null;S.uid=null;S.myName="";S.canWrite=null;S.deciding=null;S.confirmDel=null;stopData();fillBy();$("#who").hidden=true;
+  document.querySelectorAll("main .msg").forEach(m=>{m.textContent="";m.className="msg"});["#f-issue","#f-recv","#f-dip","#f-adj","#f-acct"].forEach(id=>{const f=$(id);if(f)f.reset()});
+  showLogin();setLoginMode("signin");renderAll();setTimeout(()=>$("#li-user").focus(),30);
+}
+async function syncDirectory(){
+  if(!may.accounts())return;
+  const accounts=acctList().map(a=>({username:a.username,name:a.name,title:a.title||"",role:a.role,plant:a.plant||"",active:a.active!==false}));
+  try{await S.db.doc("public/directory").set({accounts,updatedAt:new Date().toISOString()})}catch(e){}
+}
+function renderAccounts(){
+  if(!$("#at-tbl"))return;
+  const list=acctList();
+  $("#at-tbl").innerHTML=list.length?`<thead><tr><th>Name</th><th>Username</th><th>Position</th><th>Role</th><th>Plant</th><th>Password</th><th>Status</th><th></th></tr></thead><tbody>${list.map(a=>{const me=a.uid===S.uid;
+    const acts=may.accounts()&&!me?`<button type="button" class="ghost" data-toggle-acct="${esc(a.uid)}">${a.active===false?"Enable":"Disable"}</button>`:"";
+    return `<tr><td><span style="display:inline-flex;align-items:center;gap:8px"><span class="av" style="width:28px;height:28px;font-size:11px;background:${avColor(a.username||a.uid)}">${esc(initials(a.name))}</span>${esc(a.name)}</span></td><td class="code">${esc(a.username||"")}</td><td>${esc(a.title||"")}</td><td>${esc(ROLES[a.role]||a.role)}</td><td>${a.plant?`<span class="chip">${esc(a.plant)}</span>`:"Both"}</td><td>${a.mustChangePassword?'<span class="pill warn">Temporary</span>':'<span class="pill ok">Set by user</span>'}</td><td>${a.active===false?'<span class="pill na">Disabled</span>':'<span class="pill ok">Active</span>'}</td><td style="white-space:nowrap">${acts}</td></tr>`}).join("")}</tbody>`
+    :`<tbody><tr><td class="empty"><b>No accounts</b>Run the seed script, or add the first account with the form.</td></tr></tbody>`;
+}
+function renderReport(){
+  const m=$("#rp-month").value||thisMonth();
+  const rows=monthSummary(m),tc=rows.reduce((a,r)=>a+(r.cost||0),0);
+  const tl=rows.reduce((a,r)=>a+r.liters,0),fills=rows.reduce((a,r)=>a+r.fills,0);
+  const rec=scoped(S.receipts).filter(r=>String(r.date).startsWith(m)).reduce((a,r)=>a+num(r.liters),0);
+  $("#rp-kpis").innerHTML=[["Liters issued",fmt(tl,1),"L"],["Liters received",fmt(rec,1),"L"],["Units fueled",String(rows.length),""],["Fuel cost (FIFO)",peso(tc),""],["Over limit",String(rows.filter(r=>r.flag==="bad").length),"units"]]
+    .map(k=>`<div class="kpi"><div class="lbl">${esc(k[0])}</div><div class="val">${esc(k[1])}${k[2]?`<small>${esc(k[2])}</small>`:""}</div></div>`).join("");
+  $("#rp-tbl").innerHTML=rows.length?`<thead><tr><th>Unit</th><th>Type</th><th>Site</th><th class="n">Fills</th><th class="n">Liters</th><th class="n">Run</th><th class="n">Actual rate</th><th class="n">Limit</th><th class="n">Variance</th><th>Status</th><th class="n">Cost</th></tr></thead><tbody>${
+    rows.map(r=>`<tr><td class="code">${esc(codeOf(r.u,r.code))}</td><td>${esc(r.u?r.u.type:"")}</td><td>${esc(r.u?r.u.site:"")}</td><td class="n">${r.fills}</td><td class="n">${fmt(r.liters,1)}</td><td class="n">${r.delta?fmt(r.delta,1)+" "+meterUnit(r.u):"—"}</td><td class="n">${r.rate!=null?rateFmt(r.rate,r.u):"—"}</td><td class="n">${esc(limitText(r.u))}</td><td class="n">${r.var!=null?(r.var>0?"+":"")+Math.round(r.var*100)+"%":"—"}</td><td><span class="pill ${r.flag}">${FLAG[r.flag]}</span></td><td class="n">${peso(r.cost||0)}</td></tr>`).join("")
+  }</tbody><tfoot><tr><td colspan="3">Total</td><td class="n">${fills}</td><td class="n">${fmt(tl,1)}</td><td colspan="5"></td><td class="n">${peso(tc)}</td></tr></tfoot>`
+  :`<tbody><tr><td class="empty"><b>No issuances in ${esc(monthLabel(m))}</b>Pick another month, or record fuel slips first.</td></tr></tbody>`;
+}
+
+function renderCfgForm(){
+  if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest("#f-cfg"))return;
+  const c=pcfg($("#cf-plant").value);$("#cf-name").value=c.tankName||"";$("#cf-cap").value=c.capacity||"";$("#cf-reo").value=c.reorderLevel||"";$("#cf-open").value=c.openingStock||"";$("#cf-oprice").value=c.openingPrice||"";
+  const g=S.cfg;$("#cf-maxkm").value=g.defaultMaxKm==null||g.defaultMaxKm===""?0.9:g.defaultMaxKm;$("#cf-maxhr").value=g.defaultMaxHr||"";
+}
+function applyPermissions(){
+  const ro=!S.acct,r=ROLES[role()]||"This account";
+  const forms=[["#f-issue",may.encode(),"record fuel issuances"],["#f-recv",may.encode(),"record deliveries"],["#f-dip",may.dip(),"record dip readings"],["#f-adj",may.adjReq(),"request adjustments"],["#f-unit",may.units(),"add or edit units"],["#f-cfg",may.settings(),"change tank settings"],["#f-acct",may.accounts(),"manage accounts"]];
+  forms.forEach(([sel,ok,what])=>{const f=$(sel);if(!f)return;const dis=ro||!ok;
+    f.querySelectorAll("input,select,button,textarea").forEach(e=>{e.disabled=dis});
+    let n=f.querySelector(".role-note");if(!n){n=document.createElement("p");n.className="notice role-note";f.prepend(n)}
+    n.hidden=!dis||!S.acct;n.textContent=`${r} accounts cannot ${what}.`});
+  if(!ro&&may.settings())$("#cf-plant").disabled=false;
+  ["#cf-maxkm","#cf-maxhr"].forEach(id=>{if(role()==="controller")$(id).disabled=true});
+  const lock=plantLock();
+  ["#plant-sel","#plant-sel-m","#is-plant","#rc-plant","#dp-plant","#aj-plant","#cf-plant"].forEach(id=>{const e=$(id);if(lock){e.value=lock;e.disabled=true}else if(id==="#plant-sel"||id==="#plant-sel-m")e.disabled=false});
+  $('a[data-tab="accounts"]').hidden=!may.accounts();
+}
+
+/* ---------- csv ---------- */
+async function saveCsv(name,rows){
+  const csv=rows.map(r=>r.map(c=>{const s=String(c==null?"":c);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(",")).join("\r\n");
+  const url=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}));
+  const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+$("#il-csv").addEventListener("click",()=>{const rates=computeRates();saveCsv("diesel-issuances-"+(S.plant||"all")+"-"+($("#il-month").value||"all")+".csv",[["Date","Time","Plant","Issuance #","Requisition slip #","Code","Equipment / plate","Business unit / site","Project location","Liters","Odo opening","Odo closing","Km run","Hr opening","Hr closing","Hours run","L/km","L/hr","Status","FIFO price per L","FIFO cost","Driver / operator","Notes","Encoded by"],...filteredIssuances().slice().reverse().map(i=>{const u=unitById(i.unitId),r=rates[i.id]||{};return[i.date,i.time,i.plant,i.slipNo,i.reqNo,codeOf(u,i.unitCode),i.equipment,i.site,i.location,i.liters,i.odoOpen,i.odoClose,r.km!=null?r.km.toFixed(1):"",i.hrOpen,i.hrClose,r.hrs!=null?r.hrs.toFixed(1):"",r.rKm!=null?r.rKm.toFixed(4):"",r.rHr!=null?r.rHr.toFixed(4):"",FLAG[r.flag||"na"],costOf(i).perL.toFixed(4),costOf(i).amount.toFixed(2),i.operator,i.remarks,i.encodedBy||nameOf(i.by)]})])});
+$("#rl-csv").addEventListener("click",()=>saveCsv("diesel-deliveries-"+($("#rl-month").value||"all")+".csv",[["Date","Time","Plant","Supplier / DR No","Liters delivered","Price per L","Amount","Encoded by"],...filteredReceipts().slice().reverse().map(r=>[r.date,r.time,r.plant,[r.supplier,r.drNo].filter(Boolean).join(" "),r.liters,r.price,(num(r.liters)*num(r.price)).toFixed(2),r.encodedBy||nameOf(r.by)])]));
+$("#rp-csv").addEventListener("click",()=>{const m=$("#rp-month").value||thisMonth();saveCsv("diesel-utilization-"+(S.plant||"all")+"-"+m+".csv",[["Code","Type","Site","Fills","Liters","Run","Run unit","Actual rate","Limit","Rate unit","Variance %","Status","FIFO cost (PHP)"],...monthSummary(m).map(r=>{const l=limitFor(r.u);return[codeOf(r.u,r.code),r.u?r.u.type:"",r.u?r.u.site:"",r.fills,r.liters.toFixed(2),r.delta?r.delta.toFixed(1):"",meterUnit(r.u),r.rate!=null?r.rate.toFixed(4):"",l?l.v:"",rateUnit(r.u),r.var!=null?Math.round(r.var*100):"",FLAG[r.flag],(r.cost||0).toFixed(2)]})])});
+$("#ut-csv").addEventListener("click",()=>saveCsv("vehicle-list.csv",[["Code","Equipment / plate","Plate","Type","Driver / operator","Site / business unit","Tank capacity","Meter","Standard rate","Status"],...filteredUnits().map(u=>[u.code,u.name,u.plate,u.type,u.operator,u.site,u.tankCap||"",u.meter==="hr"?"Hour meter":"Odometer",u.stdRate||"",u.status||"Active"])]));
+
+/* ---------- writes ---------- */
+function msg(sel,text,kind){const el=$(sel);el.textContent=text;el.className="msg"+(kind?" "+kind:"")}
+async function write(fn,sel){
+  if(!S.db||!S.acct){msg(sel,"Sign in to save.","err");return false}
+  try{await fn();return true}catch(e){
+    const c=e&&e.code;
+    msg(sel,c==="permission-denied"?"Your role cannot save this. The server refused it.":c==="resource-exhausted"?"Too many writes right now. Wait a moment and try again.":c==="unavailable"?"No connection. It will not be saved until you are back online; try again.":"Could not save"+(c?" ("+c+")":"")+". Try again.","err");return false}
+}
+function cleanUnit(u){const o={...u};return o}
+async function saveUnitChunk(cid,units){const c=S.chunks[cid]||{};await S.db.doc("unitbook/"+cid).set({seq:c.seq||0,units:units.map(cleanUnit)})}
+async function upsertUnit(unit){
+  const cid=S.unitChunk[unit.id];
+  if(cid){const arr=(S.chunks[cid].units||[]).map(u=>u.id===unit.id?unit:u);return saveUnitChunk(cid,arr)}
+  const ids=Object.keys(S.chunks).sort();let target=ids.reverse().find(k=>(S.chunks[k].units||[]).length<CHUNK_MAX);
+  if(!target){const n=Object.keys(S.chunks).length+1;target="chunk-"+pad(n)+"-"+Date.now().toString(36);S.chunks[target]={seq:n,units:[]}}
+  return saveUnitChunk(target,[...(S.chunks[target].units||[]),unit]);
+}
+async function removeUnit(id){const cid=S.unitChunk[id];if(!cid)return;return saveUnitChunk(cid,(S.chunks[cid].units||[]).filter(u=>u.id!==id))}
+
+const nowTime=()=>new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Manila",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date());
+const nowDate=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Manila"}).format(new Date());
+let lastUnitId=null;
+$("#is-unit").addEventListener("input",()=>{
+  const u=unitByCode($("#is-unit").value);
+  if(u&&u.id!==lastUnitId){lastUnitId=u.id;
+    $("#is-equip").value=u.name||"";$("#is-operator").value=u.operator||"";$("#is-site").value=u.site||"";
+    const lr=lastReadings(u.id);$("#is-odo-o").value=lr.odo!=null?lr.odo:"";$("#is-hr-o").value=lr.hr!=null?lr.hr:"";}
+  if(!u)lastUnitId=null;
+  updateIssueHint();
+});
+["#is-plant","#is-liters","#is-odo-o","#is-odo-c","#is-hr-o","#is-hr-c","#is-odo-of","#is-odo-cf","#is-hr-of","#is-hr-cf"].forEach(id=>$(id).addEventListener("input",updatePreview));
+function clearIssue(keepMsg){
+  ["#is-unit","#is-slip","#is-req","#is-site","#is-liters","#is-operator","#is-equip","#is-loc","#is-remarks","#is-odo-o","#is-odo-c","#is-hr-o","#is-hr-c"].forEach(id=>$(id).value="");
+  ["#is-odo-of","#is-odo-cf","#is-hr-of","#is-hr-cf"].forEach(id=>$(id).checked=false);
+  $("#is-date").value=nowDate();$("#is-time").value=nowTime();$("#is-plant").value=S.plant||$("#is-plant").value;
+  if(!$("#is-by").value&&S.myName)$("#is-by").value=S.myName;
+  lastUnitId=null;if(!keepMsg)msg("#is-msg","");updateIssueHint();
+}
+$("#is-clear").addEventListener("click",()=>clearIssue());
+$("#f-issue").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const u=unitByCode($("#is-unit").value),liters=num($("#is-liters").value),plant=$("#is-plant").value,slip=$("#is-slip").value.trim(),f=formSlip();
+  if(!u)return msg("#is-msg","Enter a registered code or vehicle name.","err");
+  if(!slip)return msg("#is-msg","Enter the issuance number.","err");
+  if(S.issuances.some(i=>String(i.slipNo||"").trim().toUpperCase()===slip.toUpperCase()))return msg("#is-msg",`Issuance # ${slip} is already recorded.`,"err");
+  if(!$("#is-site").value.trim())return msg("#is-msg","Enter the business unit or site.","err");
+  if(!plant)return msg("#is-msg","Select the plant the fuel came from.","err");
+  if(!(liters>0))return msg("#is-msg","Enter the liters issued.","err");
+  if(!$("#is-by").value.trim())return msg("#is-msg","Enter who encoded this entry.","err");
+  if(has(f.odoOpen)&&has(f.odoClose)&&num(f.odoClose)<num(f.odoOpen))return msg("#is-msg","Odometer closing is lower than opening.","err");
+  if(has(f.hrOpen)&&has(f.hrClose)&&num(f.hrClose)<num(f.hrOpen))return msg("#is-msg","Hour meter closing is lower than opening.","err");
+  const n=v=>has(v)?num(v):"";
+  const st=stock(plant);
+  const doc={plant,date:$("#is-date").value||nowDate(),time:$("#is-time").value||"",unitId:u.id,unitCode:u.code,slipNo:slip,reqNo:$("#is-req").value.trim(),site:$("#is-site").value.trim(),liters,
+    operator:$("#is-operator").value.trim(),equipment:$("#is-equip").value.trim(),location:$("#is-loc").value.trim(),remarks:$("#is-remarks").value.trim(),encodedBy:$("#is-by").value.trim(),encodedUser:(S.acct||{}).username||"",
+    odoOpen:n(f.odoOpen),odoClose:n(f.odoClose),hrOpen:n(f.hrOpen),hrClose:n(f.hrClose),odoOpenFlag:f.odoOpenFlag,odoCloseFlag:f.odoCloseFlag,hrOpenFlag:f.hrOpenFlag,hrCloseFlag:f.hrCloseFlag,
+    by:S.uid||"",createdAt:new Date().toISOString()};
+  if(await write(()=>S.db.collection("issuances").add(doc),"#is-msg")){
+    clearIssue(true);
+    let note="";if(u.tankCap&&liters>u.tankCap)note=` More than the ${fmt(u.tankCap)} L tank capacity of this unit.`;if(liters>st)note+=` ${plantName(plant)} stock is now negative; check for a missing delivery.`;
+    msg("#is-msg",`Added ${fmt(liters,2)} L to ${u.code} (Issuance # ${slip}).`+note,note?"warn":"ok");
+  }
+});
+function recvPreview(){
+  const L=num($("#rc-liters").value),P=num($("#rc-price").value),pl=$("#rc-plant").value;
+  const a=$("#rc-amt");a.textContent=L>0&&P>0?peso(L*P):"auto";a.classList.toggle("has",L>0&&P>0);
+  const o=$("#rc-after");
+  if(pl&&L>0){const cap=num(pcfg(pl).capacity),after=stock(pl)+L;o.textContent=fmt(after,2)+" L"+(cap?" of "+fmt(cap)+" L capacity"+(after>cap?" (over capacity)":""):"");o.classList.add("has")}else{o.textContent="auto";o.classList.remove("has")}
+}
+["#rc-liters","#rc-price","#rc-plant"].forEach(id=>$(id).addEventListener("input",recvPreview));
+function clearRecv(keepMsg){["#rc-supplier","#rc-liters","#rc-price"].forEach(id=>$(id).value="");$("#rc-date").value=nowDate();$("#rc-time").value=nowTime();$("#rc-plant").value=S.plant||$("#rc-plant").value;if(!keepMsg)msg("#rc-msg","");recvPreview()}
+$("#rc-clear").addEventListener("click",()=>clearRecv());
+$("#f-recv").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const plant=$("#rc-plant").value;if(!plant)return msg("#rc-msg","Select the plant that received the delivery.","err");
+  const liters=num($("#rc-liters").value);if(!(liters>0))return msg("#rc-msg","Enter the liters delivered.","err");
+  const price=num($("#rc-price").value);if(!(price>0))return msg("#rc-msg","Enter the price per liter.","err");
+  const sup=$("#rc-supplier").value.trim();
+  if(sup&&S.receipts.some(r=>String(r.supplier||"").trim().toUpperCase()===sup.toUpperCase()&&/\d{4,}/.test(sup)))return msg("#rc-msg",`${sup} is already recorded.`,"err");
+  const cap=num(pcfg(plant).capacity),after=stock(plant)+liters;
+  const doc={plant,date:$("#rc-date").value||nowDate(),time:$("#rc-time").value||"",supplier:sup,liters,price,encodedBy:S.myName||"",encodedUser:(S.acct||{}).username||"",by:S.uid||"",createdAt:new Date().toISOString()};
+  if(await write(()=>S.db.collection("receipts").add(doc),"#rc-msg")){
+    clearRecv(true);
+    msg("#rc-msg",`Added delivery of ${fmt(liters,2)} L (${peso(liters*price)}) to ${plantName(plant)}.`+(cap&&after>cap?` Book stock (${fmt(after)} L) now exceeds tank capacity; verify with a dipstick reading.`:""),cap&&after>cap?"warn":"ok");
+  }
+});
+function stdLabel(){$("#un-std-lbl").textContent="Standard rate ("+($("#un-meter").value==="hr"?"L/hr":"L/km")+")"}
+$("#un-meter").addEventListener("change",stdLabel);
+$("#un-type").innerHTML=TYPES.map(t=>`<option>${esc(t)}</option>`).join("");
+function resetUnitForm(){S.editUnit=null;$("#f-unit").reset();$("#un-type").value="Dump truck";$("#fu-title").textContent="Add unit";$("#un-save").textContent="Add unit";$("#un-cancel").hidden=true;stdLabel()}
+$("#un-cancel").addEventListener("click",()=>{resetUnitForm();msg("#un-msg","")});
+$("#f-unit").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const code=$("#un-code").value.trim().replace(/\s+/g," ");if(!code)return msg("#un-msg","Enter a unit code.","err");
+  const clash=unitByCode(code);if(clash&&clash.id!==S.editUnit)return msg("#un-msg",`Code ${code} already exists (${clash.name||clash.site||""}).`,"err");
+  const prev=S.editUnit?unitById(S.editUnit):null;
+  const status=$("#un-status").value;
+  const unit={...(prev||{}),id:prev?prev.id:"u"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),code,type:$("#un-type").value,name:$("#un-name").value.trim(),plate:$("#un-plate").value.trim(),operator:$("#un-operator").value.trim(),site:$("#un-site").value.trim(),meter:$("#un-meter").value,stdRate:num($("#un-std").value),tankCap:num($("#un-tank").value),status:status==="Active"?"":status,active:status!=="Inactive"};
+  if(await write(()=>upsertUnit(unit),"#un-msg")){resetUnitForm();msg("#un-msg",prev?`Updated ${code}.`:`Added ${code}.`,"ok")}
+});
+["#dp-od","#dp-cd","#dp-om1","#dp-cm1","#dp-om2","#dp-cm2","#dp-om1f","#dp-cm1f","#dp-om2f","#dp-cm2f"].forEach(id=>$(id).addEventListener("input",dipPreview));
+["#dp-plant","#dp-date"].forEach(id=>$(id).addEventListener("change",()=>{prefillDip();dipPreview()}));
+$("#dl-month").addEventListener("change",renderStock);
+function clearDip(keep){["#dp-od","#dp-cd","#dp-om1","#dp-cm1","#dp-om2","#dp-cm2","#dp-notes"].forEach(id=>$(id).value="");["#dp-om1f","#dp-cm1f","#dp-om2f","#dp-cm2f"].forEach(id=>$(id).checked=false);$("#dp-date").value=nowDate();$("#dp-plant").value=S.plant||$("#dp-plant").value;if(!$("#dp-by").value&&S.myName)$("#dp-by").value=S.myName;if(!keep)msg("#dp-msg","");prefillDip();dipPreview()}
+$("#dp-clear").addEventListener("click",()=>clearDip());
+$("#f-dip").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const p=$("#dp-plant").value,date=$("#dp-date").value||nowDate(),f=dipForm();
+  if(!p)return msg("#dp-msg","Select the plant.","err");
+  if(!has(f.openDip)||!has(f.closeDip))return msg("#dp-msg","Enter the opening and closing dip in liters.","err");
+  if(S.dipsticks.some(d=>d.plant===p&&d.date===date))return msg("#dp-msg",`${plantName(p)} already has a dip reading for ${date}. Delete it first to re-enter.`,"err");
+  for(const [o,c,n] of [[f.om1,f.cm1,1],[f.om2,f.cm2,2]])if(has(o)&&has(c)&&num(c)<num(o))return msg("#dp-msg",`Closing meter ${n} is lower than opening meter ${n}.`,"err");
+  if(!$("#dp-by").value.trim())return msg("#dp-msg","Enter who encoded this reading.","err");
+  const n=v=>has(v)?num(v):"";
+  const doc={plant:p,date,time:"23:59",openDip:num(f.openDip),closeDip:num(f.closeDip),liters:num(f.closeDip),om1:n(f.om1),cm1:n(f.cm1),om2:n(f.om2),cm2:n(f.cm2),om1f:f.om1f,cm1f:f.cm1f,om2f:f.om2f,cm2f:f.cm2f,notes:$("#dp-notes").value.trim(),encodedBy:$("#dp-by").value.trim(),encodedUser:(S.acct||{}).username||"",by:S.uid||"",createdAt:new Date().toISOString()};
+  const R=dayRecon(p,date,doc),book=bookAt(p,evKey(doc,2)),bv=doc.closeDip-book;
+  doc.bookLiters=Math.round(book*100)/100;
+  if(await write(()=>S.db.collection("dipsticks").add(doc),"#dp-msg")){
+    clearDip(true);msg("#dp-msg",`Saved ${plantName(p)} ${date}: dip usage ${fmt(R.use,2)} L vs system ${fmt(R.sys,2)} L (${R.label}).`,R.st==="ok"?"ok":"warn");
+  }
+});
+$("#dl-csv").addEventListener("click",()=>{const m=$("#dl-month").value||thisMonth();saveCsv("dip-vs-consumption-"+(S.plant||"all")+"-"+m+".csv",[["Date","Plant","Opening dip (L)","Deliveries (L)","Closing dip (L)","Dip usage (L)","Opening meter 1","Closing meter 1","Opening meter 2","Closing meter 2","Meters dispensed (L)","Meter flagged","System consumption (L)","Dip vs system (L)","Meter vs system (L)","Status","Book closing (L)","Closing dip vs book (L)","Adjusted","Notes","Encoded by"],...scoped(S.dipsticks).filter(d=>String(d.date).startsWith(m)).sort((a,b)=>evKey(a,2).localeCompare(evKey(b,2))).map(d=>{const R=dayRecon(d.plant,d.date,d),b=bookAt(d.plant,evKey(d,2));return[d.date,d.plant,d.openDip,R.rcv,d.closeDip,R.use!=null?R.use.toFixed(2):"",d.om1,d.cm1,d.om2,d.cm2,R.mtr!=null?R.mtr.toFixed(2):"",R.mflag?"YES":"",R.sys.toFixed(2),R.d1!=null?R.d1.toFixed(2):"",R.d2!=null?R.d2.toFixed(2):"",R.label,b.toFixed(2),(num(d.closeDip)-b).toFixed(2),d.adjusted?d.adjLiters:"",d.notes,d.encodedBy||nameOf(d.by)]})])});
+["#aj-liters","#aj-dir"].forEach(id=>$(id).addEventListener("input",adjPreview));
+$("#aj-plant").addEventListener("change",()=>{$("#aj-dip").value="";renderAdjust()});
+$("#aj-date").addEventListener("change",adjPreview);
+["#al-status","#al-month"].forEach(id=>$(id).addEventListener("change",renderAdjust));
+$("#aj-dip").addEventListener("change",()=>{const d=S.dipsticks.find(x=>x.id===$("#aj-dip").value);if(!d)return;const R=dayRecon(d.plant,d.date,d);
+  if(R.d1){$("#aj-dir").value=R.d1>0?"decrease":"increase";$("#aj-liters").value=Math.abs(Math.round(R.d1*100)/100)}
+  $("#aj-date").value=d.date;if(!$("#aj-reason").value)$("#aj-reason").value="Dip variance";adjPreview()});
+function clearAdj(keep){["#aj-liters","#aj-remarks"].forEach(id=>$(id).value="");$("#aj-reason").value="";$("#aj-dip").value="";$("#aj-dir").value="decrease";$("#aj-date").value=nowDate();$("#aj-plant").value=S.plant||$("#aj-plant").value;if(!$("#aj-by").value&&S.myName)$("#aj-by").value=S.myName;if(!keep)msg("#aj-msg","");renderAdjust()}
+$("#aj-clear").addEventListener("click",()=>clearAdj());
+$("#f-adj").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const p=$("#aj-plant").value,L=num($("#aj-liters").value);
+  if(!p)return msg("#aj-msg","Select the plant.","err");
+  if(!(L>0))return msg("#aj-msg","Enter the liters to adjust.","err");
+  if(!$("#aj-reason").value)return msg("#aj-msg","Select a reason.","err");
+  if(!$("#aj-remarks").value.trim())return msg("#aj-msg","Write the justification for the approver.","err");
+  if(!$("#aj-by").value.trim())return msg("#aj-msg","Enter who is requesting.","err");
+  const dip=S.dipsticks.find(x=>x.id===$("#aj-dip").value);
+  const date=$("#aj-date").value||nowDate(),ref=S.db?S.db.collection("adjustments").doc():null;
+  if(!ref)return msg("#aj-msg","Sign in to save.","err");
+  const doc={refNo:"ADJ-"+date.replace(/-/g,"").slice(2)+"-"+ref.id.slice(-4).toUpperCase(),plant:p,date,direction:$("#aj-dir").value,liters:L,reason:$("#aj-reason").value,remarks:$("#aj-remarks").value.trim(),dipRef:dip?dip.id:"",dipLabel:dip?(()=>{const R=dayRecon(dip.plant,dip.date,dip);return dip.date+" · "+R.label+(R.d1!=null?" "+sgn(R.d1):"")})():"",requestedBy:$("#aj-by").value.trim(),requestedUser:(S.acct||{}).username||"",by:S.uid||"",createdAt:new Date().toISOString()};
+  if(await write(()=>ref.set(doc),"#aj-msg")){clearAdj(true);msg("#aj-msg",`Submitted ${doc.refNo} for approval. Stock is unchanged until it is approved.`,"ok")}
+});
+async function decide(id,status){
+  const r=S.adjReq.find(x=>x.id===id);if(!r)return;
+  const note=($("#dc-note")||{}).value||"";
+  if(status==="rejected"&&!note.trim())return msg("#al-msg","Write a comment to reject the request.","err");
+  if(isOwnReq(r))return msg("#al-msg","You cannot approve your own request.","err");
+  if(!may.approve(r.plant))return msg("#al-msg","Your role cannot approve adjustments for this plant.","err");
+  const doc={status,plant:r.plant,date:r.date,liters:adjSigned(r),refNo:r.refNo,comment:note.trim(),decidedBy:S.uid||"",adjBy:r.by||"",decidedByName:S.myName||"",decidedUser:(S.acct||{}).username||"",decidedAt:new Date().toISOString()};
+  const ok=await write(()=>S.db.doc("approvals/"+id).set(doc),"#al-msg");
+  if(ok){S.deciding=null;msg("#al-msg",`${r.refNo} ${status}.`+(status==="approved"?" Book stock and FIFO updated.":""),"ok");renderAdjust()}
+  else msg("#al-msg","Only the plant's Inventory Controller or the Inventory Management Head can approve or reject.","err");
+}
+$("#al-csv").addEventListener("click",()=>saveCsv("stock-adjustments-"+(S.plant||"all")+"-"+($("#al-month").value||"all")+".csv",[["Ref #","Effective date","Plant","Direction","Liters","Reason","Justification","Dip reference","Requested by","Requested at","Status","Decided by","Decided at","Comment","FIFO value (PHP)"],...scoped(S.adjReq).filter(r=>!$("#al-month").value||String(r.date).startsWith($("#al-month").value)).map(r=>{const a=S.approvals[r.id],c=fifo().cost[r.id],st=adjStatus(r);return[r.refNo,r.date,r.plant,r.direction,adjSigned(r),r.reason,r.remarks,r.dipLabel,r.requestedBy,r.createdAt,st,a?a.decidedByName:"",a?a.decidedAt:"",a?a.comment:"",st==="approved"&&c?((adjSigned(r)<0?-1:1)*c.amount).toFixed(2):""]})]));
+$("#f-login").addEventListener("submit",e=>{e.preventDefault();doLogin()});
+$("#li-user").addEventListener("input",loginState);
+$("#li-eye").addEventListener("click",()=>{const show=$("#li-pw").type==="password";["#li-pw","#li-pwn","#li-pw2"].forEach(id=>$(id).type=show?"text":"password");$("#li-eye").setAttribute("aria-label",show?"Hide password":"Show password")});
+$("#li-quick").addEventListener("click",e=>{const b=e.target.closest("[data-quick]");if(!b)return;$("#li-user").value=b.dataset.quick;msg("#li-msg","");loginState();$("#li-pw").focus()});
+$("#li-cancel").addEventListener("click",()=>{setLoginMode("signin");hideLogin()});
+$("#li-out").addEventListener("click",signOut);
+$("#signout").addEventListener("click",signOut);
+$("#chpw").addEventListener("click",()=>{setLoginMode("change",false);showLogin();$("#li-pw").focus()});
+$("#ac-role").addEventListener("change",()=>{const r=$("#ac-role").value;if(r==="head"||r==="auditor")$("#ac-plant").value="";if(!$("#ac-title").value)$("#ac-title").placeholder=ROLES[r]});
+$("#f-acct").addEventListener("submit",async e=>{
+  e.preventDefault();if(!may.accounts())return;
+  const u=$("#ac-user").value.trim().toLowerCase(),name=$("#ac-name").value.trim(),r=$("#ac-role").value,pl=$("#ac-plant").value,pw=$("#ac-pw").value;
+  if(!name)return msg("#ac-msg","Enter the full name.","err");
+  if(!/^[a-z0-9._-]{3,30}$/.test(u))return msg("#ac-msg","Username: 3–30 letters, numbers, dot, dash or underscore.","err");
+  if(acctList().some(a=>a.username===u))return msg("#ac-msg",`Username ${u} is already taken.`,"err");
+  if((r==="controller"||r==="staff")&&!pl)return msg("#ac-msg","Controllers and staff need a plant.","err");
+  if(pw.length<8)return msg("#ac-msg","Temporary password needs at least 8 characters.","err");
+  msg("#ac-msg","Creating account…");
+  let uid;try{uid=await S.be.createUser(u,pw)}catch(err){return msg("#ac-msg",authErr(err),"err")}
+  const doc={username:u,name,role:r,plant:(r==="controller"||r==="staff")?pl:"",title:$("#ac-title").value.trim()||ROLES[r],active:true,mustChangePassword:true,createdAt:new Date().toISOString(),createdBy:S.uid};
+  if(await write(()=>S.db.doc("users/"+uid).set(doc),"#ac-msg")){$("#f-acct").reset();msg("#ac-msg",`Added ${name} (${u}). Give them the temporary password; they must change it at first sign-in.`,"ok");S.users[uid]=doc;syncDirectory()}
+});
+$("#f-cfg").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const pid=$("#cf-plant").value;
+  const plants={...(S.cfg.plants||{})};plants[pid]={tankName:$("#cf-name").value.trim(),capacity:num($("#cf-cap").value),reorderLevel:num($("#cf-reo").value),openingStock:num($("#cf-open").value),openingPrice:num($("#cf-oprice").value)};
+  const doc={plants,defaultMaxKm:$("#cf-maxkm").value===""?"":num($("#cf-maxkm").value),defaultMaxHr:num($("#cf-maxhr").value)};
+  if(await write(()=>S.db.doc("config/main").set(doc),"#cf-msg")){msg("#cf-msg",plantName(pid)+" settings saved.","ok");$("#cf-save").blur()}
+});
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("button");if(!b)return;
+  if(b.dataset.toggleAcct){const id=b.dataset.toggleAcct,a=S.users[id];if(!a)return;if(await write(()=>S.db.doc("users/"+id).update({active:a.active===false}),"#at-msg")){msg("#at-msg",`${a.name} ${a.active===false?"enabled":"disabled"}.`,"ok");S.users[id]={...a,active:a.active===false};syncDirectory()}return}
+  if(b.dataset.decide){S.deciding=b.dataset.decide;msg("#al-msg","");renderAdjust();const n=$("#dc-note");if(n)n.focus();return}
+  if(b.hasAttribute("data-undecide")){S.deciding=null;renderAdjust();return}
+  if(b.dataset.approve){b.disabled=true;await decide(b.dataset.approve,"approved");return}
+  if(b.dataset.reject){await decide(b.dataset.reject,"rejected");return}
+  if(b.dataset.ask){S.confirmDel=b.dataset.ask+":"+b.dataset.id;renderLogs();renderUnits();renderStock();renderAdjust();renderAccounts();return}
+  if(b.hasAttribute("data-cancel")){S.confirmDel=null;renderLogs();renderUnits();renderStock();renderAdjust();renderAccounts();return}
+  if(b.dataset.del){const kind=b.dataset.del,id=b.dataset.id;S.confirmDel=null;
+    const sel=kind==="units"?"#un-msg":kind==="receipts"?"#rc-msg":kind==="dipsticks"?"#dp-msg":kind==="adjustments"?"#al-msg":"#is-msg";
+    const ok=await write(()=>kind==="units"?removeUnit(id):S.db.doc(kind+"/"+id).delete(),sel);
+    if(ok)msg(sel,"Deleted.","ok");renderLogs();renderUnits();renderStock();renderAdjust();return}
+  if(b.dataset.edit){const u=unitById(b.dataset.edit);if(!u)return;S.editUnit=u.id;
+    $("#un-code").value=u.code||"";$("#un-type").value=TYPES.includes(u.type)?u.type:"Other";$("#un-name").value=u.name||"";$("#un-plate").value=u.plate||"";$("#un-operator").value=u.operator||"";$("#un-site").value=u.site||"";$("#un-meter").value=u.meter||"km";$("#un-std").value=u.stdRate||"";$("#un-tank").value=u.tankCap||"";$("#un-status").value=u.status||(u.active===false?"Inactive":"Active");
+    stdLabel();$("#fu-title").textContent="Edit "+u.code;$("#un-save").textContent="Save changes";$("#un-cancel").hidden=false;msg("#un-msg","");$("#f-unit").scrollIntoView({block:"start",behavior:"smooth"});$("#un-code").focus({preventScroll:true})}
+});
+["#il-month","#il-unit","#rl-month"].forEach(s=>$(s).addEventListener("change",renderLogs));
+$("#rp-month").addEventListener("change",renderReport);
+["#lg-from","#lg-to","#lg-status","#lg-group"].forEach(id=>$(id).addEventListener("change",renderLogReport));
+let lgT;["#lg-site","#lg-unit","#lg-q"].forEach(id=>$(id).addEventListener("input",()=>{clearTimeout(lgT);lgT=setTimeout(renderLogReport,200)}));
+$("#lg-reset").addEventListener("click",()=>{logDefaults();renderLogReport()});
+$("#lg-csv").addEventListener("click",()=>{const rows=logRows();const lab=s=>s==="na"?"":FLAG[s].toUpperCase();
+  saveCsv("consumption-log-"+(S.plant||"all")+"-"+($("#lg-from").value||"start")+"-to-"+($("#lg-to").value||"today")+".csv",[["DATE","TIME","PLANT","CODE","Equipment/Service with Plate No.","BUSINESS UNIT / SITE","PROJECT LOCATION","ISSUANCE SLIP","REQUISITION SLIP","Refilled Qty","FIFO Price per L","FIFO Cost","Odometer Previous","Odometer Present","Hourmeter Previous","Hourmeter Present","Consumed Kilometer","Consumed Hourmeter","Fuel Rate Kilometer","Fuel Rate Hourmeter","Remarks/ Odometer","Remarks/ Hourmeter","DRIVER/OPERATOR","NOTES","ENCODED BY"],
+  ...rows.map(x=>{const i=x.i,r=x.r;return[i.date,i.time,i.plant,codeOf(x.u,i.unitCode),i.equipment,i.site,i.location,i.slipNo,i.reqNo,i.liters,costOf(i).perL.toFixed(4),costOf(i).amount.toFixed(2),i.odoOpen,i.odoClose,i.hrOpen,i.hrClose,r.km!=null?r.km.toFixed(1):"",r.hrs!=null?r.hrs.toFixed(1):"",r.rKm!=null?r.rKm.toFixed(4):"",r.rHr!=null?r.rHr.toFixed(4):"",lab(x.sKm),lab(x.sHr),i.operator,i.remarks,i.encodedBy||nameOf(i.by)]})])});
+$("#cf-plant").addEventListener("change",()=>{msg("#cf-msg","");renderCfgForm()});
+function applyPlant(){$("#plant-sel").value=S.plant;$("#plant-sel-m").value=S.plant;["#is-plant","#rc-plant","#dp-plant","#aj-plant"].forEach(s=>{$(s).value=S.plant});if(S.plant)$("#cf-plant").value=S.plant}
+["#plant-sel","#plant-sel-m"].forEach(id=>$(id).addEventListener("change",e=>{S.plant=e.target.value;try{localStorage.setItem("dus-plant",S.plant)}catch(e){}applyPlant();prefillDip();renderAll()}));
+let qT;$("#ut-q").addEventListener("input",()=>{clearTimeout(qT);qT=setTimeout(()=>{S.unitLimit=PAGE;renderUnits()},150)});
+["#ut-type","#ut-status"].forEach(s=>$(s).addEventListener("change",()=>{S.unitLimit=PAGE;renderUnits()}));
+$("#ut-more").addEventListener("click",()=>{S.unitLimit+=PAGE*2;renderUnits()});
+
+/* ---------- boot ---------- */
+$("#is-date").value=nowDate();$("#is-time").value=nowTime();$("#rc-date").value=nowDate();$("#rc-time").value=nowTime();$("#dp-date").value=nowDate();$("#dl-month").value=thisMonth();$("#aj-date").value=nowDate();$("#al-month").value=thisMonth();
+$("#il-month").value=thisMonth();$("#rl-month").value=thisMonth();$("#rp-month").value=thisMonth();
+logDefaults();showTab();resetUnitForm();applyPlant();applyPermissions();renderAll();setTimeout(()=>$("#li-user").focus(),50);
+const fD=new Intl.DateTimeFormat("en-PH",{timeZone:"Asia/Manila",weekday:"long",month:"long",day:"numeric",year:"numeric"});
+const fT=new Intl.DateTimeFormat("en-PH",{timeZone:"Asia/Manila",hour:"numeric",minute:"2-digit",second:"2-digit",hour12:true});
+function tick(){const n=new Date();$("#clock-d").textContent=fD.format(n);$("#clock-t").textContent=fT.format(n)}
+tick();setInterval(tick,1000);
+
+let renderQueued=false;
+function queueRender(){fifoCache=null;if(renderQueued)return;renderQueued=true;requestAnimationFrame(()=>{renderQueued=false;renderAll();resolveNames()})}
+
+async function boot(){
+  const be=window.DUS||await new Promise(r=>window.addEventListener("dus-ready",()=>r(window.DUS),{once:true}));
+  S.be=be;
+  if(!be.configured){msg("#li-msg","Firebase is not set up yet. Fill in public/js/config.js (see README).","err");$("#li-quick").hidden=true;$("#li-div").hidden=true;return}
+  S.db=be.db;
+  if(be.flags.SHOW_QUICK_SELECT)be.db.doc("public/directory").onSnapshot(s=>{S.directory=s.exists?(s.data().accounts||[]):[];renderQuick();loginState()},()=>{S.directory=[];renderQuick()});
+  else renderQuick();
+  be.onAuth(u=>{if(!u){onSignedOut();return}S.uid=u.uid;msg("#li-msg","Loading your account…");watchProfile(u.uid)});
+}
+boot();
+})();
+</script>
+</body>
+</html>
